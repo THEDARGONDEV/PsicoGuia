@@ -109,9 +109,15 @@ export default function DailyBriefingVideo({ childId, childName, tasks, isWeeken
   const playSegment = (index: number, segs = segments) => {
     if (!synthRef.current || segs.length === 0) return;
     
-    isCanceledRef.current = true;
+    // Remove event listeners from the previous utterance to prevent race conditions
+    // where canceling triggers onend and skips to the wrong segment.
+    if (utteranceRef.current) {
+      utteranceRef.current.onend = null;
+      utteranceRef.current.onerror = null;
+      utteranceRef.current.onboundary = null;
+    }
+    
     synthRef.current.cancel();
-    isCanceledRef.current = false;
 
     if (index >= segs.length) {
       setIsPlaying(false);
@@ -147,44 +153,39 @@ export default function DailyBriefingVideo({ childId, childName, tasks, isWeeken
     };
 
     utterance.onend = () => {
-      if (!isCanceledRef.current) {
-        playSegment(index + 1, segs);
-      }
+      playSegment(index + 1, segs);
     };
 
     utterance.onerror = (e) => {
-      if (!isCanceledRef.current) {
-        console.error('Speech synthesis error', e);
-        setIsPlaying(false);
-        setIsPaused(false);
-      }
+      console.error('Speech synthesis error', e);
+      setIsPlaying(false);
+      setIsPaused(false);
     };
 
     utteranceRef.current = utterance;
     
-    // Only speak if we are currently playing, or if we are starting fresh
-    if (isPlaying || (!isPlaying && !isPaused)) {
-      synthRef.current.speak(utterance);
-      setIsPlaying(true);
-      setIsPaused(false);
-    } else if (isPaused) {
-      // If we skip while paused, we want to stay paused but update the index
-      setIsPlaying(false);
-      setIsPaused(true);
-    }
+    // Small timeout to ensure the previous cancel has fully processed before speaking again
+    // This prevents the new utterance from being swallowed by the previous cancel command
+    setTimeout(() => {
+      if (synthRef.current && utteranceRef.current === utterance) {
+        synthRef.current.speak(utterance);
+        setIsPlaying(true);
+        setIsPaused(false);
+      }
+    }, 50);
   };
 
   const togglePlayPause = () => {
     if (!synthRef.current) return;
     
     if (isPlaying) {
-      isCanceledRef.current = true;
-      synthRef.current.cancel();
+      synthRef.current.pause();
       setIsPaused(true);
       setIsPlaying(false);
     } else if (isPaused) {
-      isCanceledRef.current = false;
-      playSegment(currentSegmentIndex);
+      synthRef.current.resume();
+      setIsPaused(false);
+      setIsPlaying(true);
     } else {
       // Start from beginning or current
       const startIndex = progress >= 99 ? 0 : currentSegmentIndex;
@@ -194,7 +195,11 @@ export default function DailyBriefingVideo({ childId, childName, tasks, isWeeken
 
   const handleStop = () => {
     if (synthRef.current) {
-      isCanceledRef.current = true;
+      if (utteranceRef.current) {
+        utteranceRef.current.onend = null;
+        utteranceRef.current.onerror = null;
+        utteranceRef.current.onboundary = null;
+      }
       synthRef.current.cancel();
       setIsPlaying(false);
       setIsPaused(false);
@@ -208,23 +213,10 @@ export default function DailyBriefingVideo({ childId, childName, tasks, isWeeken
     setShowRewind(true);
     setTimeout(() => setShowRewind(false), 500);
     
-    const wasPlaying = isPlaying;
-    
     if (currentSegmentIndex > 0) {
       playSegment(currentSegmentIndex - 1);
     } else {
       playSegment(0);
-    }
-    
-    if (!wasPlaying && isPaused) {
-       setIsPlaying(false);
-       setIsPaused(true);
-    } else {
-       setIsPlaying(true);
-       setIsPaused(false);
-       if (synthRef.current && utteranceRef.current && !synthRef.current.speaking) {
-         synthRef.current.speak(utteranceRef.current);
-       }
     }
   };
 
@@ -233,21 +225,8 @@ export default function DailyBriefingVideo({ childId, childName, tasks, isWeeken
     setShowForward(true);
     setTimeout(() => setShowForward(false), 500);
     
-    const wasPlaying = isPlaying;
-    
     if (currentSegmentIndex < segments.length - 1) {
       playSegment(currentSegmentIndex + 1);
-    }
-    
-    if (!wasPlaying && isPaused) {
-       setIsPlaying(false);
-       setIsPaused(true);
-    } else {
-       setIsPlaying(true);
-       setIsPaused(false);
-       if (synthRef.current && utteranceRef.current && !synthRef.current.speaking) {
-         synthRef.current.speak(utteranceRef.current);
-       }
     }
   };
 
