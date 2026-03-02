@@ -136,55 +136,14 @@ export default function TaskDetailScreen({ task, onBack, onComplete }: Props) {
         
         {renderAnimation()}
 
-        {/* Valentina's Alarm Feature */}
-        {task.childId === 'valentina' && (
-          <div className="bg-red-50 border-2 border-red-200 rounded-2xl p-4 mb-6">
-            <h3 className="text-red-800 font-bold flex items-center gap-2 mb-3">
-              <Bell size={20} /> Recordatorio / Alarma
-            </h3>
-            <p className="text-sm text-red-600 mb-3">
-              Programa a qué hora realizarás esta actividad para que la app te avise.
-            </p>
-            <div className="flex items-center gap-3">
-              <input 
-                type="time" 
-                value={alarmTime}
-                onChange={(e) => setAlarmTime(e.target.value)}
-                className="border-2 border-red-300 rounded-xl px-3 py-2 bg-white text-red-900 font-bold focus:outline-none focus:border-red-500"
-              />
-              {isAlarmSet ? (
-                <button 
-                  onClick={handleClearAlarm}
-                  className="bg-red-100 text-red-700 px-4 py-2 rounded-xl font-bold hover:bg-red-200 transition-colors"
-                >
-                  Cancelar
-                </button>
-              ) : (
-                <button 
-                  onClick={handleSetAlarm}
-                  disabled={!alarmTime}
-                  className="bg-red-500 text-white px-4 py-2 rounded-xl font-bold hover:bg-red-600 transition-colors disabled:opacity-50"
-                >
-                  Programar
-                </button>
-              )}
-            </div>
-            {isAlarmSet && (
-              <div className="mt-3 text-sm font-medium text-red-700 flex items-center gap-1">
-                <CheckCircle2 size={16} /> Alarma activa para las {alarmTime}
-              </div>
-            )}
-          </div>
-        )}
-
         {/* Jorge's Setup/Extension Feature */}
         {needsSetup && (
-          <div className="bg-blue-50 border-2 border-blue-200 rounded-2xl p-4 mb-6">
-            <h3 className="text-blue-800 font-bold flex items-center gap-2 mb-3">
-              <Settings size={20} /> Configuración Previa Requerida
+          <div className="bg-gray-50 border border-gray-200 rounded-2xl p-6 mb-8">
+            <h3 className="text-gray-900 font-bold flex items-center gap-2 mb-3 text-sm uppercase tracking-wide">
+              <Settings size={16} /> Configuración Previa
             </h3>
-            <p className="text-sm text-blue-600 mb-3">
-              Esta actividad requiere que definas las normas o pasos específicos antes de aplicarla.
+            <p className="text-sm text-gray-500 mb-4">
+              Define los pasos específicos antes de comenzar.
             </p>
             <textarea 
               value={setupData}
@@ -193,57 +152,65 @@ export default function TaskDetailScreen({ task, onBack, onComplete }: Props) {
                 setIsSetupSaved(false);
               }}
               placeholder="Ej: 1. No gritar en casa. 2. Pedir por favor..."
-              className="w-full border-2 border-blue-300 rounded-xl p-3 bg-white text-blue-900 focus:outline-none focus:border-blue-500 min-h-[100px] mb-3"
+              className="w-full border border-gray-200 rounded-xl p-4 bg-white text-gray-900 focus:outline-none focus:border-black min-h-[100px] mb-4 text-sm"
             />
             <button 
               onClick={handleSaveSetup}
               disabled={!setupData.trim() || isSetupSaved}
-              className={`flex items-center justify-center gap-2 w-full py-3 rounded-xl font-bold transition-colors ${
+              className={`flex items-center justify-center gap-2 w-full py-3 rounded-xl font-bold text-sm transition-all ${
                 isSetupSaved 
-                  ? 'bg-green-500 text-white' 
-                  : 'bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50'
+                  ? 'bg-black text-white' 
+                  : 'bg-gray-100 text-gray-900 hover:bg-gray-200 disabled:opacity-50'
               }`}
             >
               {isSetupSaved ? (
-                <><CheckCircle2 size={20} /> Configuración Guardada</>
+                <><CheckCircle2 size={16} /> Guardado</>
               ) : (
-                <><Save size={20} /> Guardar Configuración</>
+                <><Save size={16} /> Guardar</>
               )}
             </button>
           </div>
         )}
 
-        <div className="bg-black text-white p-6 rounded-3xl mb-6">
-          <p className="text-lg font-medium">{task.description}</p>
+        <div className="mb-8">
+          <p className="text-lg font-medium text-gray-800 leading-relaxed">{task.description}</p>
         </div>
 
-        {/* Expanded Details Section */}
-        {task.instructions && (
-          <div className="bg-blue-50 border-l-4 border-blue-500 p-4 mb-4 rounded-r-2xl">
-            <h4 className="font-bold text-blue-900 flex items-center gap-2 mb-2">
-              <Info size={18} /> Instrucciones Precisas
-            </h4>
-            <p className="text-blue-800 text-sm">{task.instructions}</p>
-          </div>
-        )}
+        {/* Minimalist Info Blocks */}
+        <div className="space-y-6 mb-8">
+          {task.instructions && (
+            <div className="group">
+              <h4 className="font-bold text-xs uppercase tracking-widest text-gray-400 mb-2 flex items-center gap-2">
+                <Info size={14} /> Instrucciones
+              </h4>
+              <p className="text-gray-700 text-sm leading-relaxed border-l-2 border-gray-200 pl-4 group-hover:border-black transition-colors">
+                {task.instructions}
+              </p>
+            </div>
+          )}
 
-        {task.tips && (
-          <div className="bg-yellow-50 border-l-4 border-yellow-500 p-4 mb-4 rounded-r-2xl">
-            <h4 className="font-bold text-yellow-900 flex items-center gap-2 mb-2">
-              <Lightbulb size={18} /> Consejos Prácticos
-            </h4>
-            <p className="text-yellow-800 text-sm">{task.tips}</p>
-          </div>
-        )}
+          {task.tips && (
+            <div className="group">
+              <h4 className="font-bold text-xs uppercase tracking-widest text-gray-400 mb-2 flex items-center gap-2">
+                <Lightbulb size={14} /> Consejo
+              </h4>
+              <p className="text-gray-700 text-sm leading-relaxed border-l-2 border-gray-200 pl-4 group-hover:border-black transition-colors">
+                {task.tips}
+              </p>
+            </div>
+          )}
 
-        {task.keyInfo && (
-          <div className="bg-purple-50 border-l-4 border-purple-500 p-4 mb-6 rounded-r-2xl">
-            <h4 className="font-bold text-purple-900 flex items-center gap-2 mb-2">
-              <AlertTriangle size={18} /> Información Clave
-            </h4>
-            <p className="text-purple-800 text-sm">{task.keyInfo}</p>
-          </div>
-        )}
+          {task.keyInfo && (
+            <div className="group">
+              <h4 className="font-bold text-xs uppercase tracking-widest text-gray-400 mb-2 flex items-center gap-2">
+                <AlertTriangle size={14} /> Importante
+              </h4>
+              <p className="text-gray-700 text-sm leading-relaxed border-l-2 border-gray-200 pl-4 group-hover:border-black transition-colors">
+                {task.keyInfo}
+              </p>
+            </div>
+          )}
+        </div>
 
         <h3 className="text-xl font-bold mb-4">Pasos a seguir:</h3>
         <div className="space-y-4 mb-8">

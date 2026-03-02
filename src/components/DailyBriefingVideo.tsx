@@ -129,6 +129,13 @@ export default function DailyBriefingVideo({ childId, childName, tasks, isWeeken
 
     setCurrentSegmentIndex(index);
     const segment = segs[index];
+    
+    if (!segment) {
+      console.warn('Segment not found at index', index);
+      setIsPlaying(false);
+      return;
+    }
+
     const utterance = new SpeechSynthesisUtterance(segment.text);
     
     const voices = synthRef.current.getVoices();
@@ -157,6 +164,10 @@ export default function DailyBriefingVideo({ childId, childName, tasks, isWeeken
     };
 
     utterance.onerror = (e) => {
+      // Ignore interruption errors as they happen when skipping/rewinding
+      if (e.error === 'interrupted' || e.error === 'canceled') {
+        return;
+      }
       console.error('Speech synthesis error', e);
       setIsPlaying(false);
       setIsPaused(false);
@@ -172,7 +183,7 @@ export default function DailyBriefingVideo({ childId, childName, tasks, isWeeken
         setIsPlaying(true);
         setIsPaused(false);
       }
-    }, 50);
+    }, 100);
   };
 
   const togglePlayPause = () => {

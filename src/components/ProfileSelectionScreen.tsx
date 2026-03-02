@@ -1,12 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { HelpCircle, Activity, BookOpen, X } from 'lucide-react';
-import { ValentinaAvatar, JorgeAvatar } from './Avatars';
+import { ValentinaAvatar, JorgeAvatar, ParentsAvatar } from './Avatars';
 import { TaskData } from '../data/tasks';
 import OnboardingTutorial from './OnboardingTutorial';
+import MinimalAuth from './MinimalAuth';
 
 interface Props {
-  onSelectChild: (id: string, mode: 'practical' | 'theoretical') => void;
+  onSelectChild: (id: string, mode: 'practical' | 'theoretical' | 'parents') => void;
   tasks: TaskData[];
+  isAuthenticated: boolean;
+  username: string | null;
+  onLogin: (username: string, remember: boolean) => void;
+  onLogout: () => void;
 }
 
 const ProgressCircle = ({ progress }: { progress: number }) => {
@@ -41,7 +46,7 @@ const ProgressCircle = ({ progress }: { progress: number }) => {
   );
 };
 
-export default function ProfileSelectionScreen({ onSelectChild, tasks }: Props) {
+export default function ProfileSelectionScreen({ onSelectChild, tasks, isAuthenticated, username, onLogin, onLogout }: Props) {
   const [showTutorial, setShowTutorial] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
   const [expandedChild, setExpandedChild] = useState<string | null>(null);
@@ -60,6 +65,9 @@ export default function ProfileSelectionScreen({ onSelectChild, tasks }: Props) 
   };
 
   const getProgress = (childId: string) => {
+    // Only show progress if authenticated
+    if (!isAuthenticated) return 0;
+    
     const childTasks = tasks.filter(t => t.childId === childId);
     if (childTasks.length === 0) return 0;
     const completed = childTasks.filter(t => t.completed).length;
@@ -101,7 +109,7 @@ export default function ProfileSelectionScreen({ onSelectChild, tasks }: Props) 
   };
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-center p-8 bg-white h-full relative">
+    <div className="flex-1 flex flex-col items-center justify-center p-8 bg-white h-full relative overflow-y-auto">
       {/* Minimalist Tutorial Button */}
       <button 
         onClick={() => setShowTutorial(true)}
@@ -114,51 +122,78 @@ export default function ProfileSelectionScreen({ onSelectChild, tasks }: Props) 
       <h1 className="text-4xl font-bold mb-2 text-center tracking-tight">PsicoGuía</h1>
       <p className="text-gray-500 mb-12 text-center text-lg">Programa de Intervención</p>
 
-      <div className="w-full space-y-6">
-        <button
+      <div className="w-full flex flex-col md:flex-row landscape:flex-row gap-8 md:gap-12 mt-8 pb-24 justify-center items-center">
+        {/* Valentina */}
+        <div
           onClick={() => setExpandedChild(expandedChild === 'valentina' ? null : 'valentina')}
-          className="w-full group flex flex-col items-center p-8 rounded-3xl border-2 border-black hover:bg-black hover:text-white transition-colors duration-300 relative overflow-hidden"
+          className="w-full group flex flex-col items-center cursor-pointer relative"
         >
-          <div className="relative w-36 h-36 mb-4 flex items-center justify-center">
+          <div className="relative w-40 h-40 mb-4 flex items-center justify-center transition-transform duration-500 group-hover:scale-105">
             <ProgressCircle progress={getProgress('valentina')} />
-            <div className="w-28 h-28 text-black group-hover:text-white transition-colors z-10">
+            <div className="w-32 h-32 text-gray-900 transition-colors z-10">
               <ValentinaAvatar />
             </div>
           </div>
-          <h2 className="text-2xl font-bold">Valentina</h2>
-          <p className="text-sm opacity-70 mt-1">Parálisis Cerebral (PCI)</p>
+          <h2 className="text-2xl font-bold text-gray-900 group-hover:text-black transition-colors">Valentina</h2>
+          <p className="text-sm text-gray-500 mt-1 font-medium">Parálisis Cerebral (PCI)</p>
+          
           {getProgress('valentina') === 100 && (
-            <span className="absolute top-4 right-4 bg-green-500 text-white text-xs font-bold px-2 py-1 rounded-full animate-bounce">
-              ¡Semana Completa!
+            <span className="absolute top-0 right-10 bg-green-100 text-green-700 text-[10px] font-bold px-2 py-1 rounded-full animate-fade-in">
+              Completo
             </span>
           )}
+          
           {renderChildOptions('valentina')}
-        </button>
+        </div>
 
-        <button
+        {/* Jorge */}
+        <div
           onClick={() => setExpandedChild(expandedChild === 'jorge' ? null : 'jorge')}
-          className="w-full group flex flex-col items-center p-8 rounded-3xl border-2 border-black hover:bg-black hover:text-white transition-colors duration-300 relative overflow-hidden"
+          className="w-full group flex flex-col items-center cursor-pointer relative"
         >
-          <div className="relative w-36 h-36 mb-4 flex items-center justify-center">
+          <div className="relative w-40 h-40 mb-4 flex items-center justify-center transition-transform duration-500 group-hover:scale-105">
             <ProgressCircle progress={getProgress('jorge')} />
-            <div className="w-28 h-28 text-black group-hover:text-white transition-colors z-10">
+            <div className="w-32 h-32 text-gray-900 transition-colors z-10">
               <JorgeAvatar />
             </div>
           </div>
-          <h2 className="text-2xl font-bold">Jorge</h2>
-          <p className="text-sm opacity-70 mt-1">TDAH</p>
+          <h2 className="text-2xl font-bold text-gray-900 group-hover:text-black transition-colors">Jorge</h2>
+          <p className="text-sm text-gray-500 mt-1 font-medium">TDAH</p>
+          
           {getProgress('jorge') === 100 && (
-            <span className="absolute top-4 right-4 bg-green-500 text-white text-xs font-bold px-2 py-1 rounded-full animate-bounce">
-              ¡Semana Completa!
+            <span className="absolute top-0 right-10 bg-green-100 text-green-700 text-[10px] font-bold px-2 py-1 rounded-full animate-fade-in">
+              Completo
             </span>
           )}
+          
           {renderChildOptions('jorge')}
-        </button>
+        </div>
+
+        {/* Parents */}
+        <div
+          onClick={() => onSelectChild('parents', 'parents')}
+          className="w-full group flex flex-col items-center cursor-pointer relative"
+        >
+          <div className="relative w-40 h-40 mb-4 flex items-center justify-center transition-transform duration-500 group-hover:scale-105">
+            <div className="w-32 h-32 text-gray-900 transition-colors z-10">
+              <ParentsAvatar />
+            </div>
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 group-hover:text-black transition-colors">Padres</h2>
+          <p className="text-sm text-gray-500 mt-1 font-medium">Espacio de Orientación</p>
+        </div>
       </div>
 
       {showTutorial && (
         <OnboardingTutorial onComplete={handleCloseTutorial} />
       )}
+
+      <MinimalAuth 
+        isAuthenticated={isAuthenticated}
+        username={username}
+        onLogin={onLogin}
+        onLogout={onLogout}
+      />
     </div>
   );
 }

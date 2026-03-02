@@ -4,7 +4,7 @@ import CalendarComponent from './CalendarComponent';
 import TaskListItem from './TaskListItem';
 import ReminderCard from './ReminderCard';
 import TaskDetailScreen from './TaskDetailScreen';
-import CustomRoutineManager from './CustomRoutineManager';
+import RoutinePlanner from './RoutinePlanner';
 import DailyBriefingVideo from './DailyBriefingVideo';
 import JorgeRulesTracker from './JorgeRulesTracker';
 import { TaskData } from '../data/tasks';
@@ -152,26 +152,28 @@ export default function DashboardScreen({ childId, onBack, tasks, onToggleTask }
           )}
         </section>
 
-        {/* Reminders Section */}
-        <section>
-          <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-            <Bell size={20} />
-            Recordatorios
-          </h2>
-          <div className="space-y-3">
-            {reminders.map(reminder => (
-              <ReminderCard key={reminder.id} reminder={reminder} />
-            ))}
-             {reminders.length === 0 && (
-              <p className="text-gray-500 italic">No hay recordatorios.</p>
-            )}
-          </div>
-        </section>
+        {/* Reminders Section - Only for Jorge */}
+        {childId !== 'valentina' && (
+          <section>
+            <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+              <Bell size={20} />
+              Recordatorios
+            </h2>
+            <div className="space-y-3">
+              {reminders.map(reminder => (
+                <ReminderCard key={reminder.id} reminder={reminder} />
+              ))}
+               {reminders.length === 0 && (
+                <p className="text-gray-500 italic">No hay recordatorios.</p>
+              )}
+            </div>
+          </section>
+        )}
 
         {/* Custom Routine for Jorge */}
         {childId === 'jorge' && (
           <section>
-            <CustomRoutineManager />
+            <RoutinePlanner />
           </section>
         )}
 
