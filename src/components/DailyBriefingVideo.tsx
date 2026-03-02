@@ -65,12 +65,39 @@ export default function DailyBriefingVideo({ childId, childName, tasks, isWeeken
   };
 
   useEffect(() => {
-    setSegments(generateSegments());
-    setCurrentSegmentIndex(0);
-    setProgress(0);
-    handleStop();
+    const newSegments = generateSegments();
+    setSegments(newSegments);
+    
+    // Load saved progress
+    const savedIndex = localStorage.getItem(`psicoguia_video_progress_${childId}`);
+    let initialIndex = 0;
+    
+    if (savedIndex) {
+      const index = parseInt(savedIndex, 10);
+      if (!isNaN(index) && index >= 0 && index < newSegments.length) {
+        initialIndex = index;
+      }
+    }
+    
+    setCurrentSegmentIndex(initialIndex);
+    setProgress((initialIndex / newSegments.length) * 100);
+    
+    // Reset player state but keep position
+    if (synthRef.current) {
+      synthRef.current.cancel();
+    }
+    setIsPlaying(false);
+    setIsPaused(false);
+    
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tasks, childName]);
+
+  // Save progress whenever segment changes
+  useEffect(() => {
+    if (segments.length > 0) {
+      localStorage.setItem(`psicoguia_video_progress_${childId}`, currentSegmentIndex.toString());
+    }
+  }, [currentSegmentIndex, childId, segments.length]);
 
   useEffect(() => {
     synthRef.current = window.speechSynthesis;
@@ -219,6 +246,27 @@ export default function DailyBriefingVideo({ childId, childName, tasks, isWeeken
     }
   };
 
+  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newProgress = parseFloat(e.target.value);
+    setProgress(newProgress);
+    
+    const newIndex = Math.floor((newProgress / 100) * segments.length);
+    const safeIndex = Math.min(Math.max(newIndex, 0), segments.length - 1);
+    
+    setCurrentSegmentIndex(safeIndex);
+    
+    // If we are dragging, we might want to pause or just update the visual
+    // For now, let's just update visual. The user will release to play.
+  };
+
+  const handleSeekEnd = () => {
+    // When user releases the slider, play from that point if it was playing, 
+    // or just set the point ready to play.
+    if (isPlaying) {
+      playSegment(currentSegmentIndex);
+    }
+  };
+
   const handleDoubleTapLeft = (e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent single tap
     setShowRewind(true);
@@ -241,7 +289,9 @@ export default function DailyBriefingVideo({ childId, childName, tasks, isWeeken
     }
   };
 
-  const handleVideoTap = () => {
+  const handleVideoTap = (e: React.MouseEvent) => {
+    // Prevent toggling if clicking on controls (though controls are outside this div usually)
+    // But if we have overlay controls, we need to be careful.
     togglePlayPause();
   };
 
@@ -271,7 +321,7 @@ export default function DailyBriefingVideo({ childId, childName, tasks, isWeeken
       
       {/* Video Player Area */}
       <div 
-        className="relative w-full aspect-video bg-gray-900 rounded-2xl overflow-hidden mb-4 flex items-center justify-center select-none cursor-pointer"
+        className="relative w-full aspect-video bg-gray-900 rounded-2xl overflow-hidden mb-4 flex items-center justify-center select-none cursor-pointer group"
         onClick={handleVideoTap}
       >
         
@@ -299,12 +349,7 @@ export default function DailyBriefingVideo({ childId, childName, tasks, isWeeken
           </div>
         )}
 
-        {/* Animated Background when playing */}
-        {isPlaying && (
-          <div className="absolute inset-0 opacity-30 pointer-events-none">
-            <div className="absolute inset-0 bg-gradient-to-r from-blue-900 via-purple-900 to-blue-900 animate-pulse" />
-          </div>
-        )}
+        {/* Minimalist Background - removed gradient pulse */}
         
         {/* Avatar Container */}
         <div className={`relative z-10 w-32 h-32 transition-transform duration-500 ${isPlaying ? 'scale-110' : 'scale-100'} pointer-events-none`}>
@@ -331,35 +376,49 @@ export default function DailyBriefingVideo({ childId, childName, tasks, isWeeken
         
         {/* Overlay for paused state */}
         {!isPlaying && (
-          <div className="absolute inset-0 bg-black/40 flex items-center justify-center z-30 pointer-events-none">
-            <div className="w-16 h-16 bg-white/20 backdrop-blur-sm text-white rounded-full flex items-center justify-center pointer-events-none">
+          <div className="absolute inset-0 bg-black/20 flex items-center justify-center z-30 pointer-events-none transition-opacity duration-300">
+            <div className="w-16 h-16 bg-white/10 backdrop-blur-sm text-white rounded-full flex items-center justify-center pointer-events-none">
               <Play size={32} className="ml-2 fill-current" />
             </div>
           </div>
         )}
       </div>
 
-      {/* Controls Bar */}
-      <div className="flex items-center justify-between px-2">
-        <div className="flex items-center gap-3">
-          <button onClick={togglePlayPause} className="text-white hover:text-gray-300 transition-colors z-50">
-            {isPlaying ? <Pause size={20} className="fill-current" /> : <Play size={20} className="fill-current" />}
-          </button>
+      {/* Minimalist Controls Bar */}
+      <div className="flex flex-col gap-2 px-1">
+        {/* Progress Slider */}
+        <div className="w-full flex items-center gap-2 group">
+           <input
+            type="range"
+            min="0"
+            max="100"
+            step="0.1"
+            value={progress}
+            onChange={handleSeek}
+            onMouseUp={handleSeekEnd}
+            onTouchEnd={handleSeekEnd}
+            className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-white hover:h-2 transition-all duration-200"
+          />
+        </div>
+
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <button onClick={togglePlayPause} className="text-white hover:text-gray-300 transition-colors">
+              {isPlaying ? <Pause size={24} className="fill-current" /> : <Play size={24} className="fill-current" />}
+            </button>
+            
+            <div className="text-xs text-gray-400 font-mono">
+              {Math.floor(progress)}%
+            </div>
+          </div>
+          
           <button 
             onClick={handleStop} 
-            disabled={!isPlaying && !isPaused}
-            className={`transition-colors z-50 ${(!isPlaying && !isPaused) ? 'text-gray-600' : 'text-white hover:text-gray-300'}`}
+            className="text-gray-500 hover:text-white transition-colors text-xs uppercase tracking-wider font-bold"
           >
-            <Square size={16} className="fill-current" />
+            Reiniciar
           </button>
         </div>
-        
-        {/* Simple Progress Text instead of bar */}
-        <div className="flex-1 text-center text-xs text-gray-400 font-mono">
-          {Math.round(progress)}%
-        </div>
-        
-        <Volume2 size={18} className={`text-gray-400 ${isPlaying ? 'animate-pulse text-white' : ''}`} />
       </div>
     </div>
   );

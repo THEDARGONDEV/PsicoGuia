@@ -119,7 +119,7 @@ export default function ProfileSelectionScreen({ onSelectChild, tasks, isAuthent
         <HelpCircle size={24} />
       </button>
 
-      <h1 className="text-4xl font-bold mb-2 text-center tracking-tight">PsicoGuía</h1>
+      <h1 className="text-6xl font-handwriting font-bold mb-2 text-center tracking-tight text-gray-800 drop-shadow-sm">PsicoGuía</h1>
       <p className="text-gray-500 mb-12 text-center text-lg">Programa de Intervención</p>
 
       <div className="w-full flex flex-col md:flex-row landscape:flex-row gap-8 md:gap-12 mt-8 pb-24 justify-center items-center">
