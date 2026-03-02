@@ -41,35 +41,6 @@ export default function MinimalAuth({ isAuthenticated, username, onLogin, onLogo
     setIsLoading(true);
 
     try {
-      if (!auth) {
-        // Mock Auth Flow for Demo Mode
-        if (isLoginMode) {
-             const emailToUse = inputEmail || inputUsername;
-             if (!emailToUse.includes('@') && !inputUsername) {
-                 setError('Por favor ingresa un correo electrónico válido.');
-                 setIsLoading(false);
-                 return;
-             }
-             // Simulate success
-             const userDisplay = inputUsername || emailToUse.split('@')[0];
-             onLogin(userDisplay, rememberMe);
-             setIsModalOpen(false);
-        } else {
-             if (inputPassword.length < 6) {
-                setError('La contraseña debe tener al menos 6 caracteres.');
-                setIsLoading(false);
-                return;
-             }
-             setSuccess('¡Cuenta creada (Demo)! Iniciando sesión...');
-             setTimeout(() => {
-                 onLogin(inputUsername || inputEmail.split('@')[0], rememberMe);
-                 setIsModalOpen(false);
-             }, 1000);
-        }
-        setIsLoading(false);
-        return;
-      }
-
       if (isLoginMode) {
         // LOGIN LOGIC
         // Use email for login if provided, otherwise assume username is email (or handle username login separately if needed)
@@ -128,6 +99,8 @@ export default function MinimalAuth({ isAuthenticated, username, onLogin, onLogo
         setError('Contraseña incorrecta.');
       } else if (err.code === 'auth/email-already-in-use') {
         setError('Este correo ya está registrado.');
+      } else if (err.code === 'auth/configuration-not-found' || err.code === 'auth/operation-not-allowed') {
+        setError('Error de configuración: Habilita "Email/Password" en la consola de Firebase (Authentication > Sign-in method).');
       } else {
         setError('Ocurrió un error: ' + err.message);
       }
@@ -138,9 +111,7 @@ export default function MinimalAuth({ isAuthenticated, username, onLogin, onLogo
 
   const handleSignOut = async () => {
       try {
-          if (auth) {
-            await signOut(auth);
-          }
+          await signOut(auth);
           onLogout();
       } catch (error) {
           console.error("Error signing out: ", error);
