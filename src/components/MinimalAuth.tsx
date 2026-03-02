@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { X, LogIn, LogOut, User, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { auth } from '../lib/firebase';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile } from 'firebase/auth';
 
 interface Props {
   isAuthenticated: boolean;
   username: string | null;
-  onLogin: (username: string, remember: boolean) => void;
-  onLogout: () => void;
+  onLogin: (username: string, remember: boolean) => void; // Kept for compatibility, but managed by Firebase listener in App
+  onLogout: () => void; // Kept for compatibility
 }
 
 export default function MinimalAuth({ isAuthenticated, username, onLogin, onLogout }: Props) {
@@ -38,70 +40,111 @@ export default function MinimalAuth({ isAuthenticated, username, onLogin, onLogo
     setSuccess(null);
     setIsLoading(true);
 
-    // Simulate network delay for realism
-    await new Promise(resolve => setTimeout(resolve, 600));
-
     try {
+      if (!auth) {
+        // Mock Auth Flow for Demo Mode
+        if (isLoginMode) {
+             const emailToUse = inputEmail || inputUsername;
+             if (!emailToUse.includes('@') && !inputUsername) {
+                 setError('Por favor ingresa un correo electrónico válido.');
+                 setIsLoading(false);
+                 return;
+             }
+             // Simulate success
+             const userDisplay = inputUsername || emailToUse.split('@')[0];
+             onLogin(userDisplay, rememberMe);
+             setIsModalOpen(false);
+        } else {
+             if (inputPassword.length < 6) {
+                setError('La contraseña debe tener al menos 6 caracteres.');
+                setIsLoading(false);
+                return;
+             }
+             setSuccess('¡Cuenta creada (Demo)! Iniciando sesión...');
+             setTimeout(() => {
+                 onLogin(inputUsername || inputEmail.split('@')[0], rememberMe);
+                 setIsModalOpen(false);
+             }, 1000);
+        }
+        setIsLoading(false);
+        return;
+      }
+
       if (isLoginMode) {
         // LOGIN LOGIC
-        const storedUser = localStorage.getItem(`user_data_${inputUsername}`);
+        // Use email for login if provided, otherwise assume username is email (or handle username login separately if needed)
+        // For simplicity, let's assume the input is email for now, or we can try to find user by username (complex in Firebase).
+        // Let's stick to email for Firebase Auth.
         
-        if (!storedUser) {
-          setError('Usuario no encontrado. Crea una cuenta primero.');
-          setIsLoading(false);
-          return;
+        // If user entered a username in the "Usuario" field (which is inputUsername), we might have a problem if they didn't enter email.
+        // The original code had "Usuario" field for login. Firebase needs Email.
+        // Let's change the UI to ask for Email in Login mode too, or use inputUsername as email.
+        
+        const emailToUse = inputEmail || inputUsername; // Fallback if they put email in username field
+        
+        if (!emailToUse.includes('@')) {
+           setError('Por favor ingresa un correo electrónico válido.');
+           setIsLoading(false);
+           return;
         }
 
-        const userData = JSON.parse(storedUser);
-        if (userData.password !== inputPassword) {
-          setError('Contraseña incorrecta.');
-          setIsLoading(false);
-          return;
-        }
-
-        // Login successful
-        onLogin(inputUsername, rememberMe);
+        await signInWithEmailAndPassword(auth, emailToUse, inputPassword);
+        
+        // Login successful - onAuthStateChanged in App.tsx will handle state update
         setIsModalOpen(false);
 
       } else {
         // REGISTRATION LOGIC
-        const existingUser = localStorage.getItem(`user_data_${inputUsername}`);
-        
-        if (existingUser) {
-          setError('Este nombre de usuario ya existe.');
+        if (inputPassword.length < 6) {
+          setError('La contraseña debe tener al menos 6 caracteres.');
           setIsLoading(false);
           return;
         }
 
-        if (inputPassword.length < 4) {
-          setError('La contraseña es muy corta.');
-          setIsLoading(false);
-          return;
-        }
-
-        // Save new user
-        const newUser = {
-          username: inputUsername,
-          email: inputEmail,
-          password: inputPassword,
-          createdAt: new Date().toISOString()
-        };
+        const userCredential = await createUserWithEmailAndPassword(auth, inputEmail, inputPassword);
         
-        localStorage.setItem(`user_data_${inputUsername}`, JSON.stringify(newUser));
+        // Update profile with username
+        if (userCredential.user) {
+            await updateProfile(userCredential.user, {
+                displayName: inputUsername
+            });
+        }
         
         setSuccess('¡Cuenta creada! Iniciando sesión...');
         
-        // Auto login after registration
         setTimeout(() => {
-          onLogin(inputUsername, rememberMe);
           setIsModalOpen(false);
         }, 1000);
       }
-    } catch (err) {
-      setError('Ocurrió un error inesperado.');
+    } catch (err: any) {
+      console.error(err);
+      if (err.code === 'auth/invalid-email') {
+        setError('El correo electrónico no es válido.');
+      } else if (err.code === 'auth/user-disabled') {
+        setError('El usuario ha sido deshabilitado.');
+      } else if (err.code === 'auth/user-not-found') {
+        setError('Usuario no encontrado.');
+      } else if (err.code === 'auth/wrong-password') {
+        setError('Contraseña incorrecta.');
+      } else if (err.code === 'auth/email-already-in-use') {
+        setError('Este correo ya está registrado.');
+      } else {
+        setError('Ocurrió un error: ' + err.message);
+      }
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleSignOut = async () => {
+      try {
+          if (auth) {
+            await signOut(auth);
+          }
+          onLogout();
+      } catch (error) {
+          console.error("Error signing out: ", error);
+      }
   };
 
   return (
@@ -120,10 +163,10 @@ export default function MinimalAuth({ isAuthenticated, username, onLogin, onLogo
           <div className="flex items-center gap-2 bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-full shadow-sm border border-gray-100">
             <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
             <span className="text-xs font-medium text-gray-700 max-w-[100px] truncate">
-              {username}
+              {username || 'Usuario'}
             </span>
             <button 
-              onClick={onLogout}
+              onClick={handleSignOut}
               className="ml-2 p-1 hover:bg-gray-100 rounded-full text-gray-400 hover:text-red-500 transition-colors"
               title="Cerrar Sesión"
             >
@@ -172,20 +215,23 @@ export default function MinimalAuth({ isAuthenticated, username, onLogin, onLogo
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-1">
-                <label className="text-[10px] uppercase tracking-widest text-gray-400 font-semibold">Usuario</label>
-                <input 
-                  type="text" 
-                  value={inputUsername}
-                  onChange={(e) => setInputUsername(e.target.value)}
-                  required
-                  className="w-full border-b border-gray-200 py-2 text-sm text-gray-900 focus:outline-none focus:border-black transition-colors bg-transparent placeholder-gray-300"
-                  placeholder="Tu nombre de usuario"
-                />
-              </div>
-
+              
+              {/* Username field - Only for Registration or as fallback for Login if needed, but let's prioritize Email for Firebase */}
               {!isLoginMode && (
-                <div className="space-y-1 animate-fade-in">
+                  <div className="space-y-1">
+                    <label className="text-[10px] uppercase tracking-widest text-gray-400 font-semibold">Usuario</label>
+                    <input 
+                      type="text" 
+                      value={inputUsername}
+                      onChange={(e) => setInputUsername(e.target.value)}
+                      required
+                      className="w-full border-b border-gray-200 py-2 text-sm text-gray-900 focus:outline-none focus:border-black transition-colors bg-transparent placeholder-gray-300"
+                      placeholder="Tu nombre de usuario"
+                    />
+                  </div>
+              )}
+
+              <div className="space-y-1 animate-fade-in">
                   <label className="text-[10px] uppercase tracking-widest text-gray-400 font-semibold">Correo</label>
                   <input 
                     type="email" 
@@ -195,8 +241,7 @@ export default function MinimalAuth({ isAuthenticated, username, onLogin, onLogo
                     className="w-full border-b border-gray-200 py-2 text-sm text-gray-900 focus:outline-none focus:border-black transition-colors bg-transparent placeholder-gray-300"
                     placeholder="correo@ejemplo.com"
                   />
-                </div>
-              )}
+              </div>
 
               <div className="space-y-1">
                 <label className="text-[10px] uppercase tracking-widest text-gray-400 font-semibold">Contraseña</label>
@@ -210,6 +255,7 @@ export default function MinimalAuth({ isAuthenticated, username, onLogin, onLogo
                 />
               </div>
 
+              {/* Remember Me - Firebase handles persistence automatically, but we can keep UI */}
               <div className="flex items-center gap-2 pt-2">
                 <input 
                   type="checkbox" 
@@ -219,7 +265,7 @@ export default function MinimalAuth({ isAuthenticated, username, onLogin, onLogo
                   className="w-3 h-3 accent-black cursor-pointer rounded-sm"
                 />
                 <label htmlFor="remember" className="text-xs text-gray-500 cursor-pointer select-none">
-                  Recordar sesión
+                  Mantener sesión iniciada
                 </label>
               </div>
 

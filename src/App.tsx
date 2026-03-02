@@ -10,6 +10,9 @@ import PsychoeducationScreen from './components/PsychoeducationScreen';
 import ParentsDashboard from './components/ParentsDashboard';
 import NotificationManager from './components/NotificationManager';
 import { INITIAL_TASKS, TaskData } from './data/tasks';
+import { auth, db } from './lib/firebase';
+import { onAuthStateChanged } from 'firebase/auth';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 
 export default function App() {
   const [selectedChildId, setSelectedChildId] = useState<string | null>(null);
@@ -19,40 +22,119 @@ export default function App() {
   // Auth state
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [username, setUsername] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [isLoadingData, setIsLoadingData] = useState(false);
 
   useEffect(() => {
-    loadUserData();
+    if (!auth) {
+      // Fallback to local storage if Firebase is not configured
+      const savedUser = localStorage.getItem('psicoguia_user');
+      if (savedUser) {
+        try {
+          const userData = JSON.parse(savedUser);
+          setIsAuthenticated(true);
+          setUsername(userData.username);
+        } catch (e) {
+          console.error("Error parsing local user data", e);
+        }
+      }
+      
+      // Load tasks from local storage
+      const savedTasks = localStorage.getItem('psicoguia_tasks');
+      if (savedTasks) {
+        try {
+          setTasks(JSON.parse(savedTasks));
+        } catch (e) {
+          console.error("Error parsing local tasks", e);
+        }
+      }
+      return;
+    }
+
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        setIsAuthenticated(true);
+        setUsername(user.displayName || user.email?.split('@')[0] || 'Usuario');
+        setUserId(user.uid);
+        
+        // Load user data from Firestore
+        setIsLoadingData(true);
+        try {
+          const userDocRef = doc(db, 'users', user.uid);
+          const userDoc = await getDoc(userDocRef);
+          
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
+            if (userData.tasks) {
+              setTasks(userData.tasks);
+            } else {
+              // If user exists but no tasks (migration?), save initial
+              await setDoc(userDocRef, { tasks: INITIAL_TASKS }, { merge: true });
+            }
+          } else {
+            // New user, create document with initial tasks
+            await setDoc(userDocRef, { 
+              email: user.email,
+              displayName: user.displayName,
+              tasks: INITIAL_TASKS,
+              createdAt: new Date().toISOString()
+            });
+          }
+        } catch (error) {
+          console.error("Error loading user data:", error);
+        } finally {
+          setIsLoadingData(false);
+        }
+      } else {
+        setIsAuthenticated(false);
+        setUsername(null);
+        setUserId(null);
+        setTasks(INITIAL_TASKS); // Reset to default for guest/logout
+      }
+    });
+
+    return () => unsubscribe();
   }, []);
 
-  const loadUserData = () => {
-    const savedUser = localStorage.getItem('psicoguia_user');
-    if (savedUser) {
-      const userData = JSON.parse(savedUser);
-      setIsAuthenticated(true);
-      setUsername(userData.username);
-    }
-  };
-
   const handleLogin = (newUsername: string, remember: boolean) => {
-    setIsAuthenticated(true);
-    setUsername(newUsername);
-    if (remember) {
-      localStorage.setItem('psicoguia_user', JSON.stringify({ username: newUsername }));
+    // Managed by Firebase listener if auth exists
+    if (!auth) {
+      setIsAuthenticated(true);
+      setUsername(newUsername);
+      if (remember) {
+        localStorage.setItem('psicoguia_user', JSON.stringify({ username: newUsername }));
+      }
     }
   };
 
   const handleLogout = () => {
-    setIsAuthenticated(false);
-    setUsername(null);
-    localStorage.removeItem('psicoguia_user');
+    // Managed by Firebase listener if auth exists
+    if (!auth) {
+      setIsAuthenticated(false);
+      setUsername(null);
+      localStorage.removeItem('psicoguia_user');
+    }
   };
 
-  const handleToggleTask = (taskId: number) => {
-    setTasks(prevTasks => 
-      prevTasks.map(task => 
-        task.id === taskId ? { ...task, completed: !task.completed } : task
-      )
+  const handleToggleTask = async (taskId: number) => {
+    const newTasks = tasks.map(task => 
+      task.id === taskId ? { ...task, completed: !task.completed } : task
     );
+    
+    setTasks(newTasks);
+
+    // Sync with Firestore if logged in
+    if (userId && auth) {
+      try {
+        const userDocRef = doc(db, 'users', userId);
+        await setDoc(userDocRef, { tasks: newTasks }, { merge: true });
+      } catch (error) {
+        console.error("Error syncing task:", error);
+      }
+    } else if (!auth) {
+      // Sync with local storage if Firebase is not configured
+      localStorage.setItem('psicoguia_tasks', JSON.stringify(newTasks));
+    }
   };
 
   const handleSelectChild = (childId: string, mode: 'practical' | 'theoretical' | 'parents') => {
