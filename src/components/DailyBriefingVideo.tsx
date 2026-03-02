@@ -3,11 +3,15 @@ import { Play, Pause, Square, Volume2, Sparkles, BookOpen, Droplets, Heart, Brai
 import { TaskData } from '../data/tasks';
 import { ValentinaAvatar, JorgeAvatar } from './Avatars';
 
+import { db } from '../lib/firebase';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+
 interface Props {
   childId: string;
   childName: string;
   tasks: TaskData[];
   isWeekend: boolean;
+  userId: string | null;
 }
 
 interface ScriptSegment {
@@ -17,7 +21,7 @@ interface ScriptSegment {
   index: number;
 }
 
-export default function DailyBriefingVideo({ childId, childName, tasks, isWeekend }: Props) {
+export default function DailyBriefingVideo({ childId, childName, tasks, isWeekend, userId }: Props) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [segments, setSegments] = useState<ScriptSegment[]>([]);
@@ -68,19 +72,39 @@ export default function DailyBriefingVideo({ childId, childName, tasks, isWeeken
     const newSegments = generateSegments();
     setSegments(newSegments);
     
-    // Load saved progress
-    const savedIndex = localStorage.getItem(`psicoguia_video_progress_${childId}`);
-    let initialIndex = 0;
-    
-    if (savedIndex) {
-      const index = parseInt(savedIndex, 10);
-      if (!isNaN(index) && index >= 0 && index < newSegments.length) {
-        initialIndex = index;
+    const loadProgress = async () => {
+      let initialIndex = 0;
+      
+      if (userId) {
+        // Load from Firestore
+        try {
+          const docRef = doc(db, 'users', userId, 'videoProgress', childId);
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            if (data.index >= 0 && data.index < newSegments.length) {
+              initialIndex = data.index;
+            }
+          }
+        } catch (error) {
+          console.error("Error loading video progress:", error);
+        }
+      } else {
+        // Load from localStorage
+        const savedIndex = localStorage.getItem(`psicoguia_video_progress_${childId}`);
+        if (savedIndex) {
+          const index = parseInt(savedIndex, 10);
+          if (!isNaN(index) && index >= 0 && index < newSegments.length) {
+            initialIndex = index;
+          }
+        }
       }
-    }
-    
-    setCurrentSegmentIndex(initialIndex);
-    setProgress((initialIndex / newSegments.length) * 100);
+
+      setCurrentSegmentIndex(initialIndex);
+      setProgress((initialIndex / newSegments.length) * 100);
+    };
+
+    loadProgress();
     
     // Reset player state but keep position
     if (synthRef.current) {
@@ -90,14 +114,27 @@ export default function DailyBriefingVideo({ childId, childName, tasks, isWeeken
     setIsPaused(false);
     
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tasks, childName]);
+  }, [tasks, childName, userId]);
 
   // Save progress whenever segment changes
   useEffect(() => {
     if (segments.length > 0) {
+      if (userId) {
+        // Save to Firestore
+        const saveToFirestore = async () => {
+          try {
+            const docRef = doc(db, 'users', userId, 'videoProgress', childId);
+            await setDoc(docRef, { index: currentSegmentIndex, updatedAt: new Date().toISOString() }, { merge: true });
+          } catch (error) {
+            console.error("Error saving video progress:", error);
+          }
+        };
+        saveToFirestore();
+      }
+      // Always save to localStorage as backup/offline
       localStorage.setItem(`psicoguia_video_progress_${childId}`, currentSegmentIndex.toString());
     }
-  }, [currentSegmentIndex, childId, segments.length]);
+  }, [currentSegmentIndex, childId, segments.length, userId]);
 
   useEffect(() => {
     synthRef.current = window.speechSynthesis;

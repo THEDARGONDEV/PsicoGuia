@@ -38,9 +38,10 @@ interface Props {
   onBack: () => void;
   tasks: TaskData[];
   onToggleTask: (taskId: number) => void;
+  userId: string | null;
 }
 
-export default function DashboardScreen({ childId, onBack, tasks, onToggleTask }: Props) {
+export default function DashboardScreen({ childId, onBack, tasks, onToggleTask, userId }: Props) {
   const child = CHILDREN_INFO[childId];
   const reminders = REMINDERS.filter(r => r.childId === childId);
   const [selectedTask, setSelectedTask] = useState<TaskData | null>(null);
@@ -99,12 +100,13 @@ export default function DashboardScreen({ childId, onBack, tasks, onToggleTask }
             childName={child.name} 
             tasks={currentDayTasks} 
             isWeekend={isWeekend} 
+            userId={userId}
           />
         )}
 
         {/* Jorge's Rules Tracker */}
         {childId === 'jorge' && (
-          <JorgeRulesTracker />
+          <JorgeRulesTracker userId={userId} />
         )}
 
         {/* Calendar Section */}

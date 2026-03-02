@@ -12,7 +12,7 @@ import NotificationManager from './components/NotificationManager';
 import { INITIAL_TASKS, TaskData } from './data/tasks';
 import { auth, db } from './lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 
 export default function App() {
   const [selectedChildId, setSelectedChildId] = useState<string | null>(null);
@@ -26,97 +26,71 @@ export default function App() {
   const [isLoadingData, setIsLoadingData] = useState(false);
 
   useEffect(() => {
-    if (!auth) {
-      // Fallback to local storage if Firebase is not configured
-      const savedUser = localStorage.getItem('psicoguia_user');
-      if (savedUser) {
-        try {
-          const userData = JSON.parse(savedUser);
-          setIsAuthenticated(true);
-          setUsername(userData.username);
-        } catch (e) {
-          console.error("Error parsing local user data", e);
-        }
-      }
-      
-      // Load tasks from local storage
-      const savedTasks = localStorage.getItem('psicoguia_tasks');
-      if (savedTasks) {
-        try {
-          setTasks(JSON.parse(savedTasks));
-        } catch (e) {
-          console.error("Error parsing local tasks", e);
-        }
-      }
-      return;
-    }
-
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
       if (user) {
         setIsAuthenticated(true);
         setUsername(user.displayName || user.email?.split('@')[0] || 'Usuario');
         setUserId(user.uid);
         
-        // Load user data from Firestore
+        // Load user data from Firestore using onSnapshot for real-time and offline support
         setIsLoadingData(true);
-        try {
-          const userDocRef = doc(db, 'users', user.uid);
-          const userDoc = await getDoc(userDocRef);
-          
-          if (userDoc.exists()) {
-            const userData = userDoc.data();
-            if (userData.tasks) {
-              setTasks(userData.tasks);
+        const userDocRef = doc(db, 'users', user.uid);
+        
+        const unsubscribeSnapshot = onSnapshot(userDocRef, {
+          next: async (snapshot) => {
+            if (snapshot.exists()) {
+              const userData = snapshot.data();
+              if (userData.tasks) {
+                setTasks(userData.tasks);
+              } else {
+                // Migration: User exists but no tasks
+                await setDoc(userDocRef, { tasks: INITIAL_TASKS }, { merge: true });
+              }
             } else {
-              // If user exists but no tasks (migration?), save initial
-              await setDoc(userDocRef, { tasks: INITIAL_TASKS }, { merge: true });
+              // New user
+              await setDoc(userDocRef, { 
+                email: user.email,
+                displayName: user.displayName,
+                tasks: INITIAL_TASKS,
+                createdAt: new Date().toISOString()
+              });
             }
-          } else {
-            // New user, create document with initial tasks
-            await setDoc(userDocRef, { 
-              email: user.email,
-              displayName: user.displayName,
-              tasks: INITIAL_TASKS,
-              createdAt: new Date().toISOString()
-            });
+            setIsLoadingData(false);
+          },
+          error: (error) => {
+            console.error("Error loading user data:", error);
+            // If offline, we might get an error or just cached data. 
+            // If it's a permission error or similar, stop loading.
+            setIsLoadingData(false);
           }
-        } catch (error) {
-          console.error("Error loading user data:", error);
-        } finally {
-          setIsLoadingData(false);
-        }
+        });
+
+        return () => unsubscribeSnapshot();
+
       } else {
         setIsAuthenticated(false);
         setUsername(null);
         setUserId(null);
         setTasks(INITIAL_TASKS); // Reset to default for guest/logout
+        setIsLoadingData(false);
       }
     });
 
-    return () => unsubscribe();
+    return () => unsubscribeAuth();
   }, []);
 
   const handleLogin = (newUsername: string, remember: boolean) => {
-    // Managed by Firebase listener if auth exists
-    if (!auth) {
-      setIsAuthenticated(true);
-      setUsername(newUsername);
-      if (remember) {
-        localStorage.setItem('psicoguia_user', JSON.stringify({ username: newUsername }));
-      }
-    }
+    // Managed by Firebase listener
   };
 
   const handleLogout = () => {
-    // Managed by Firebase listener if auth exists
-    if (!auth) {
-      setIsAuthenticated(false);
-      setUsername(null);
-      localStorage.removeItem('psicoguia_user');
-    }
+    // Managed by Firebase listener
   };
 
   const handleToggleTask = async (taskId: number) => {
+    // Prevent toggling if data is still loading to avoid overwrites
+    if (isLoadingData) return;
+
     const newTasks = tasks.map(task => 
       task.id === taskId ? { ...task, completed: !task.completed } : task
     );
@@ -124,16 +98,13 @@ export default function App() {
     setTasks(newTasks);
 
     // Sync with Firestore if logged in
-    if (userId && auth) {
+    if (userId) {
       try {
         const userDocRef = doc(db, 'users', userId);
         await setDoc(userDocRef, { tasks: newTasks }, { merge: true });
       } catch (error) {
         console.error("Error syncing task:", error);
       }
-    } else if (!auth) {
-      // Sync with local storage if Firebase is not configured
-      localStorage.setItem('psicoguia_tasks', JSON.stringify(newTasks));
     }
   };
 
@@ -146,6 +117,17 @@ export default function App() {
     setSelectedChildId(null);
     setSelectedMode(null);
   };
+
+  if (isLoadingData) {
+    return (
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4 font-sans text-gray-900">
+        <div className="bg-white p-8 rounded-3xl shadow-xl flex flex-col items-center animate-pulse">
+          <div className="w-12 h-12 border-4 border-black border-t-transparent rounded-full animate-spin mb-4"></div>
+          <p className="text-lg font-medium text-gray-600">Sincronizando tu progreso...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4 font-sans text-gray-900">
@@ -169,6 +151,7 @@ export default function App() {
             onBack={handleBack} 
             tasks={tasks}
             onToggleTask={handleToggleTask}
+            userId={userId}
           />
         ) : selectedMode === 'theoretical' && selectedChildId ? (
           <PsychoeducationScreen 

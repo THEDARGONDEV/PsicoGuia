@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Check, X, ListChecks, Calendar, ChevronDown, ChevronUp } from 'lucide-react';
+import { db } from '../lib/firebase';
+import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 
 interface Rule {
   id: string;
@@ -12,7 +14,11 @@ interface WeeklyRules {
   rules: Rule[];
 }
 
-export default function JorgeRulesTracker() {
+interface Props {
+  userId: string | null;
+}
+
+export default function JorgeRulesTracker({ userId }: Props) {
   const [weeklyRules, setWeeklyRules] = useState<WeeklyRules[]>([]);
   const [currentWeekId, setCurrentWeekId] = useState<string>('');
   const [showAllRules, setShowAllRules] = useState(false);
@@ -24,54 +30,95 @@ export default function JorgeRulesTracker() {
     const weekId = `Semana del ${startOfWeek.getDate()} de ${startOfWeek.toLocaleString('es-ES', { month: 'long' })}`;
     setCurrentWeekId(weekId);
 
-    // Load saved rules from localStorage
-    const savedData = localStorage.getItem('jorge_weekly_rules_v2');
-    let currentWeeklyRules: WeeklyRules[] = savedData ? JSON.parse(savedData) : [];
-    
-    // Extract rules from setupData (Task 14 is Repaso de Normas)
-    const setupData = localStorage.getItem('setup_14');
-    let setupRules: Rule[] = [];
-    
-    if (setupData) {
-      const lines = setupData.split('\n').filter(line => line.trim().length > 0);
-      setupRules = lines.map((line, index) => ({
-        id: `rule_setup_${index}`,
-        text: line.replace(/^\d+[\.\-]?\s*/, '').trim(),
-        status: 'unanswered'
-      }));
-    } else {
-      setupRules = [
-        { id: 'rule_default_1', text: 'Hablar sin gritar', status: 'unanswered' },
-        { id: 'rule_default_2', text: 'Recoger los juguetes', status: 'unanswered' },
-        { id: 'rule_default_3', text: 'Hacer la tarea antes de jugar', status: 'unanswered' }
-      ];
-    }
+    let unsubscribe = () => {};
 
-    // Find or create the current week
-    let currentWeek = currentWeeklyRules.find(w => w.weekId === weekId);
-    
-    if (!currentWeek) {
-      currentWeek = { weekId, rules: setupRules };
-      currentWeeklyRules = [currentWeek, ...currentWeeklyRules.filter(w => w.weekId !== weekId)];
-    } else {
-      // Merge setup rules with existing rules for the current week
-      const mergedRules = setupRules.map(setupRule => {
-        const existingRule = currentWeek!.rules.find(r => r.text === setupRule.text);
-        if (existingRule) {
-          return { ...setupRule, status: existingRule.status, id: existingRule.id };
-        }
-        return setupRule;
-      });
+    const loadRules = async () => {
+      // Extract rules from setupData (Task 14 is Repaso de Normas)
+      const setupData = localStorage.getItem('setup_14');
+      let setupRules: Rule[] = [];
       
-      currentWeek.rules = mergedRules;
-      currentWeeklyRules = currentWeeklyRules.map(w => w.weekId === weekId ? currentWeek! : w);
-    }
+      if (setupData) {
+        const lines = setupData.split('\n').filter(line => line.trim().length > 0);
+        setupRules = lines.map((line, index) => ({
+          id: `rule_setup_${index}`,
+          text: line.replace(/^\d+[\.\-]?\s*/, '').trim(),
+          status: 'unanswered'
+        }));
+      } else {
+        setupRules = [
+          { id: 'rule_default_1', text: 'Hablar sin gritar', status: 'unanswered' },
+          { id: 'rule_default_2', text: 'Recoger los juguetes', status: 'unanswered' },
+          { id: 'rule_default_3', text: 'Hacer la tarea antes de jugar', status: 'unanswered' }
+        ];
+      }
 
-    setWeeklyRules(currentWeeklyRules);
-    localStorage.setItem('jorge_weekly_rules_v2', JSON.stringify(currentWeeklyRules));
-  }, []);
+      const processRules = (loadedWeeklyRules: WeeklyRules[]) => {
+        // Find or create the current week
+        let currentWeek = loadedWeeklyRules.find(w => w.weekId === weekId);
+        
+        if (!currentWeek) {
+          currentWeek = { weekId, rules: setupRules };
+          loadedWeeklyRules = [currentWeek, ...loadedWeeklyRules.filter(w => w.weekId !== weekId)];
+        } else {
+          // Merge setup rules with existing rules for the current week
+          const mergedRules = setupRules.map(setupRule => {
+            const existingRule = currentWeek!.rules.find(r => r.text === setupRule.text);
+            if (existingRule) {
+              return { ...setupRule, status: existingRule.status, id: existingRule.id };
+            }
+            return setupRule;
+          });
+          
+          currentWeek.rules = mergedRules;
+          loadedWeeklyRules = loadedWeeklyRules.map(w => w.weekId === weekId ? currentWeek! : w);
+        }
+        return loadedWeeklyRules;
+      };
 
-  const toggleRule = (weekId: string, ruleId: string, newStatus: 'success' | 'failed') => {
+      if (userId) {
+        const docRef = doc(db, 'users', userId, 'rules', 'jorge');
+        unsubscribe = onSnapshot(docRef, {
+          next: async (docSnap) => {
+            let currentWeeklyRules: WeeklyRules[] = [];
+            if (docSnap.exists()) {
+              currentWeeklyRules = docSnap.data().weeklyRules || [];
+            }
+            
+            const processedRules = processRules(currentWeeklyRules);
+            setWeeklyRules(processedRules);
+            
+            // Sync initial state back to storage if needed (only if different or new)
+            if (!docSnap.exists() || JSON.stringify(currentWeeklyRules) !== JSON.stringify(processedRules)) {
+               try {
+                 await setDoc(docRef, { weeklyRules: processedRules }, { merge: true });
+               } catch (e) { console.error(e); }
+            }
+            localStorage.setItem('jorge_weekly_rules_v2', JSON.stringify(processedRules));
+          },
+          error: (error) => {
+             console.error("Error loading rules:", error);
+             // Fallback to local storage on error (e.g. offline permission issues)
+             const savedData = localStorage.getItem('jorge_weekly_rules_v2');
+             if (savedData) {
+               setWeeklyRules(JSON.parse(savedData));
+             }
+          }
+        });
+      } else {
+        // Fallback to localStorage if not logged in
+        const savedData = localStorage.getItem('jorge_weekly_rules_v2');
+        let currentWeeklyRules: WeeklyRules[] = savedData ? JSON.parse(savedData) : [];
+        const processedRules = processRules(currentWeeklyRules);
+        setWeeklyRules(processedRules);
+        localStorage.setItem('jorge_weekly_rules_v2', JSON.stringify(processedRules));
+      }
+    };
+
+    loadRules();
+    return () => unsubscribe();
+  }, [userId]);
+
+  const toggleRule = async (weekId: string, ruleId: string, newStatus: 'success' | 'failed') => {
     const updatedWeeklyRules = weeklyRules.map(week => {
       if (week.weekId === weekId) {
         return {
@@ -85,6 +132,18 @@ export default function JorgeRulesTracker() {
     });
 
     setWeeklyRules(updatedWeeklyRules);
+    
+    // Save to Firestore
+    if (userId) {
+      try {
+        const docRef = doc(db, 'users', userId, 'rules', 'jorge');
+        await setDoc(docRef, { weeklyRules: updatedWeeklyRules }, { merge: true });
+      } catch (error) {
+        console.error("Error saving rules:", error);
+      }
+    }
+    
+    // Save to localStorage
     localStorage.setItem('jorge_weekly_rules_v2', JSON.stringify(updatedWeeklyRules));
   };
 
