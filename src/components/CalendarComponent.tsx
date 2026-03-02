@@ -1,7 +1,6 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 
 const DAYS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
-const DATES = [12, 13, 14, 15, 16, 17, 18];
 
 interface Props {
   selectedDayIndex: number;
@@ -9,6 +8,22 @@ interface Props {
 }
 
 export default function CalendarComponent({ selectedDayIndex, onSelectDay }: Props) {
+  const currentWeekDates = useMemo(() => {
+    const now = new Date();
+    const dayOfWeek = now.getDay(); // 0 is Sunday, 1 is Monday
+    // Calculate the date of the Monday of the current week
+    const diff = now.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+    const monday = new Date(now.setDate(diff));
+    
+    const dates = [];
+    for (let i = 0; i < 7; i++) {
+      const nextDate = new Date(monday);
+      nextDate.setDate(monday.getDate() + i);
+      dates.push(nextDate.getDate());
+    }
+    return dates;
+  }, []);
+
   return (
     <div className="flex justify-between items-center bg-gray-50 p-4 rounded-3xl border-2 border-black overflow-x-auto hide-scrollbar">
       {DAYS.map((day, index) => {
@@ -24,7 +39,7 @@ export default function CalendarComponent({ selectedDayIndex, onSelectDay }: Pro
               className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold border-2 transition-colors
                 ${isSelected ? 'bg-black text-white border-black' : 'bg-white text-black border-transparent hover:border-gray-300'}`}
             >
-              {DATES[index]}
+              {currentWeekDates[index]}
             </div>
             {/* Indicador visual de tareas */}
             <div className={`h-1.5 w-1.5 rounded-full mt-1 transition-colors ${isSelected ? 'bg-black' : 'bg-transparent'}`}></div>

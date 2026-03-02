@@ -6,27 +6,46 @@
 import React, { useState } from 'react';
 import ProfileSelectionScreen from './components/ProfileSelectionScreen';
 import DashboardScreen from './components/DashboardScreen';
+import PsychoeducationScreen from './components/PsychoeducationScreen';
+import NotificationManager from './components/NotificationManager';
 import { INITIAL_TASKS, TaskData } from './data/tasks';
 
 export default function App() {
   const [selectedChildId, setSelectedChildId] = useState<string | null>(null);
+  const [selectedMode, setSelectedMode] = useState<'practical' | 'theoretical' | null>(null);
   const [tasks, setTasks] = useState<TaskData[]>(INITIAL_TASKS);
 
   const handleToggleTask = (taskId: number) => {
     setTasks(tasks.map(t => t.id === taskId ? { ...t, completed: !t.completed } : t));
   };
 
+  const handleSelectChild = (childId: string, mode: 'practical' | 'theoretical') => {
+    setSelectedChildId(childId);
+    setSelectedMode(mode);
+  };
+
+  const handleBack = () => {
+    setSelectedChildId(null);
+    setSelectedMode(null);
+  };
+
   return (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4 font-sans text-gray-900">
+      <NotificationManager />
       <div className="w-full max-w-md bg-white min-h-[800px] h-[100dvh] sm:h-[800px] sm:rounded-[2.5rem] sm:shadow-2xl overflow-hidden relative flex flex-col border-4 border-black">
         {!selectedChildId ? (
-          <ProfileSelectionScreen onSelectChild={setSelectedChildId} tasks={tasks} />
-        ) : (
+          <ProfileSelectionScreen onSelectChild={handleSelectChild} tasks={tasks} />
+        ) : selectedMode === 'practical' ? (
           <DashboardScreen 
             childId={selectedChildId} 
-            onBack={() => setSelectedChildId(null)} 
+            onBack={handleBack} 
             tasks={tasks}
             onToggleTask={handleToggleTask}
+          />
+        ) : (
+          <PsychoeducationScreen 
+            childId={selectedChildId} 
+            onBack={handleBack} 
           />
         )}
       </div>

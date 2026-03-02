@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, Pause, Square, Volume2, Sparkles, BookOpen, Droplets, Heart, Brain, Star, CheckCircle } from 'lucide-react';
+import { Play, Pause, Square, Volume2, Sparkles, BookOpen, Droplets, Heart, Brain, Star, CheckCircle, Rewind, FastForward, Activity, Eye, Clock, Hand, Smile, Shield, ListChecks } from 'lucide-react';
 import { TaskData } from '../data/tasks';
 import { ValentinaAvatar, JorgeAvatar } from './Avatars';
 
@@ -23,6 +23,8 @@ export default function DailyBriefingVideo({ childId, childName, tasks, isWeeken
   const [segments, setSegments] = useState<ScriptSegment[]>([]);
   const [currentSegmentIndex, setCurrentSegmentIndex] = useState(0);
   const [progress, setProgress] = useState(0);
+  const [showRewind, setShowRewind] = useState(false);
+  const [showForward, setShowForward] = useState(false);
   
   const synthRef = useRef<SpeechSynthesis | null>(null);
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
@@ -77,7 +79,9 @@ export default function DailyBriefingVideo({ childId, childName, tasks, isWeeken
       speechSynthesis.onvoiceschanged = loadVoices;
     }
     return () => {
-      if (synthRef.current) synthRef.current.cancel();
+      if (synthRef.current) {
+        synthRef.current.cancel();
+      }
     };
   }, []);
 
@@ -157,29 +161,34 @@ export default function DailyBriefingVideo({ childId, childName, tasks, isWeeken
     };
 
     utteranceRef.current = utterance;
-    synthRef.current.speak(utterance);
-    setIsPlaying(true);
-    setIsPaused(false);
-  };
-
-  const handlePlay = () => {
-    if (!synthRef.current) return;
-    if (isPaused) {
-      synthRef.current.resume();
-      setIsPaused(false);
+    
+    // Only speak if we are currently playing, or if we are starting fresh
+    if (isPlaying || (!isPlaying && !isPaused)) {
+      synthRef.current.speak(utterance);
       setIsPlaying(true);
-      return;
+      setIsPaused(false);
+    } else if (isPaused) {
+      // If we skip while paused, we want to stay paused but update the index
+      setIsPlaying(false);
+      setIsPaused(true);
     }
-    // If finished, restart
-    const startIndex = progress >= 99 ? 0 : currentSegmentIndex;
-    playSegment(startIndex);
   };
 
-  const handlePause = () => {
-    if (synthRef.current && isPlaying) {
-      synthRef.current.pause();
+  const togglePlayPause = () => {
+    if (!synthRef.current) return;
+    
+    if (isPlaying) {
+      isCanceledRef.current = true;
+      synthRef.current.cancel();
       setIsPaused(true);
       setIsPlaying(false);
+    } else if (isPaused) {
+      isCanceledRef.current = false;
+      playSegment(currentSegmentIndex);
+    } else {
+      // Start from beginning or current
+      const startIndex = progress >= 99 ? 0 : currentSegmentIndex;
+      playSegment(startIndex);
     }
   };
 
@@ -194,33 +203,71 @@ export default function DailyBriefingVideo({ childId, childName, tasks, isWeeken
     }
   };
 
-  const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (segments.length === 0) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const clickX = e.clientX - rect.left;
-    const percentage = Math.max(0, Math.min(1, clickX / rect.width));
+  const handleDoubleTapLeft = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent single tap
+    setShowRewind(true);
+    setTimeout(() => setShowRewind(false), 500);
     
-    const targetIndex = Math.floor(percentage * segments.length);
-    const clampedIndex = Math.max(0, Math.min(targetIndex, segments.length - 1));
+    const wasPlaying = isPlaying;
     
-    setProgress(percentage * 100);
-    
-    if (isPlaying || isPaused) {
-      playSegment(clampedIndex);
+    if (currentSegmentIndex > 0) {
+      playSegment(currentSegmentIndex - 1);
     } else {
-      setCurrentSegmentIndex(clampedIndex);
+      playSegment(0);
+    }
+    
+    if (!wasPlaying && isPaused) {
+       setIsPlaying(false);
+       setIsPaused(true);
+    } else {
+       setIsPlaying(true);
+       setIsPaused(false);
+       if (synthRef.current && utteranceRef.current && !synthRef.current.speaking) {
+         synthRef.current.speak(utteranceRef.current);
+       }
     }
   };
 
-  const getCategoryIcon = (category?: string) => {
-    switch (category) {
-      case 'hygiene': return <Droplets className="text-blue-400 drop-shadow-[0_0_8px_rgba(96,165,250,0.8)]" size={48} />;
-      case 'homework': return <BookOpen className="text-yellow-400 drop-shadow-[0_0_8px_rgba(250,204,21,0.8)]" size={48} />;
-      case 'health': return <Heart className="text-red-400 drop-shadow-[0_0_8px_rgba(248,113,113,0.8)]" size={48} />;
-      case 'learning': return <Brain className="text-purple-400 drop-shadow-[0_0_8px_rgba(192,132,252,0.8)]" size={48} />;
-      case 'behavior': return <Star className="text-orange-400 drop-shadow-[0_0_8px_rgba(251,146,60,0.8)]" size={48} />;
-      case 'chores': return <CheckCircle className="text-green-400 drop-shadow-[0_0_8px_rgba(74,222,128,0.8)]" size={48} />;
-      default: return <Sparkles className="text-yellow-400 drop-shadow-[0_0_8px_rgba(250,204,21,0.8)]" size={48} />;
+  const handleDoubleTapRight = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent single tap
+    setShowForward(true);
+    setTimeout(() => setShowForward(false), 500);
+    
+    const wasPlaying = isPlaying;
+    
+    if (currentSegmentIndex < segments.length - 1) {
+      playSegment(currentSegmentIndex + 1);
+    }
+    
+    if (!wasPlaying && isPaused) {
+       setIsPlaying(false);
+       setIsPaused(true);
+    } else {
+       setIsPlaying(true);
+       setIsPaused(false);
+       if (synthRef.current && utteranceRef.current && !synthRef.current.speaking) {
+         synthRef.current.speak(utteranceRef.current);
+       }
+    }
+  };
+
+  const handleVideoTap = () => {
+    togglePlayPause();
+  };
+
+  const getTaskIcon = (task?: TaskData) => {
+    if (!task) return <Sparkles className="text-yellow-400 drop-shadow-[0_0_8px_rgba(250,204,21,0.8)]" size={48} />;
+    
+    switch (task.animationType) {
+      case 'stretching': return <Activity className="text-blue-400 drop-shadow-[0_0_8px_rgba(96,165,250,0.8)]" size={48} />;
+      case 'sensory': return <Eye className="text-purple-400 drop-shadow-[0_0_8px_rgba(192,132,252,0.8)]" size={48} />;
+      case 'posture': return <Clock className="text-green-400 drop-shadow-[0_0_8px_rgba(74,222,128,0.8)]" size={48} />;
+      case 'stop': return <Hand className="text-red-400 drop-shadow-[0_0_8px_rgba(248,113,113,0.8)]" size={48} />;
+      case 'turtle': return <Shield className="text-green-500 drop-shadow-[0_0_8px_rgba(34,197,94,0.8)]" size={48} />;
+      case 'emotions': return <Smile className="text-yellow-400 drop-shadow-[0_0_8px_rgba(250,204,21,0.8)]" size={48} />;
+      case 'rules': return <ListChecks className="text-blue-500 drop-shadow-[0_0_8px_rgba(59,130,246,0.8)]" size={48} />;
+      case 'brain': return <Brain className="text-purple-500 drop-shadow-[0_0_8px_rgba(168,85,247,0.8)]" size={48} />;
+      default: return <Star className="text-orange-400 drop-shadow-[0_0_8px_rgba(251,146,60,0.8)]" size={48} />;
     }
   };
 
@@ -233,7 +280,35 @@ export default function DailyBriefingVideo({ childId, childName, tasks, isWeeken
       </h3>
       
       {/* Video Player Area */}
-      <div className="relative w-full aspect-video bg-gray-900 rounded-2xl overflow-hidden mb-4 flex items-center justify-center">
+      <div 
+        className="relative w-full aspect-video bg-gray-900 rounded-2xl overflow-hidden mb-4 flex items-center justify-center select-none cursor-pointer"
+        onClick={handleVideoTap}
+      >
+        
+        {/* Double Tap Zones */}
+        <div 
+          className="absolute left-0 top-0 bottom-0 w-1/3 z-40" 
+          onDoubleClick={handleDoubleTapLeft}
+        />
+        <div 
+          className="absolute right-0 top-0 bottom-0 w-1/3 z-40" 
+          onDoubleClick={handleDoubleTapRight}
+        />
+
+        {/* Double Tap Feedback Animations */}
+        {showRewind && (
+          <div className="absolute left-8 top-1/2 -translate-y-1/2 z-50 bg-black/50 rounded-full p-4 animate-pulse pointer-events-none">
+            <Rewind size={32} className="text-white" />
+            <span className="text-xs font-bold block text-center mt-1">-1 Paso</span>
+          </div>
+        )}
+        {showForward && (
+          <div className="absolute right-8 top-1/2 -translate-y-1/2 z-50 bg-black/50 rounded-full p-4 animate-pulse pointer-events-none">
+            <FastForward size={32} className="text-white" />
+            <span className="text-xs font-bold block text-center mt-1">+1 Paso</span>
+          </div>
+        )}
+
         {/* Animated Background when playing */}
         {isPlaying && (
           <div className="absolute inset-0 opacity-30 pointer-events-none">
@@ -242,22 +317,22 @@ export default function DailyBriefingVideo({ childId, childName, tasks, isWeeken
         )}
         
         {/* Avatar Container */}
-        <div className={`relative z-10 w-32 h-32 transition-transform duration-500 ${isPlaying ? 'scale-110' : 'scale-100'}`}>
+        <div className={`relative z-10 w-32 h-32 transition-transform duration-500 ${isPlaying ? 'scale-110' : 'scale-100'} pointer-events-none`}>
           <div className={isPlaying ? 'animate-bounce' : ''}>
             {childId === 'jorge' ? <JorgeAvatar /> : <ValentinaAvatar />}
           </div>
         </div>
 
         {/* Thematic Animations based on current segment */}
-        {currentSegment?.type === 'task' && isPlaying && (
-          <div className="absolute right-8 top-1/2 -translate-y-1/2 animate-bounce z-20">
-            {getCategoryIcon(currentSegment.task?.category)}
+        {currentSegment?.type === 'task' && (isPlaying || isPaused) && (
+          <div className="absolute right-8 top-1/2 -translate-y-1/2 animate-bounce z-20 pointer-events-none">
+            {getTaskIcon(currentSegment.task)}
           </div>
         )}
 
         {/* Subtitles / Current Task Title */}
         {currentSegment?.type === 'task' && (isPlaying || isPaused) && (
-          <div className="absolute bottom-4 left-0 right-0 text-center px-4 z-20 animate-fade-in">
+          <div className="absolute bottom-4 left-0 right-0 text-center px-4 z-20 animate-fade-in pointer-events-none">
             <span className="bg-black/70 text-white px-4 py-2 rounded-full text-sm font-medium backdrop-blur-md border border-white/20 shadow-lg">
               {currentSegment.task?.title}
             </span>
@@ -265,14 +340,11 @@ export default function DailyBriefingVideo({ childId, childName, tasks, isWeeken
         )}
         
         {/* Overlay for paused state */}
-        {!isPlaying && !isPaused && (
-          <div className="absolute inset-0 bg-black/40 flex items-center justify-center z-30">
-            <button 
-              onClick={handlePlay}
-              className="w-16 h-16 bg-white/20 backdrop-blur-sm text-white rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
-            >
+        {!isPlaying && (
+          <div className="absolute inset-0 bg-black/40 flex items-center justify-center z-30 pointer-events-none">
+            <div className="w-16 h-16 bg-white/20 backdrop-blur-sm text-white rounded-full flex items-center justify-center pointer-events-none">
               <Play size={32} className="ml-2 fill-current" />
-            </button>
+            </div>
           </div>
         )}
       </div>
@@ -280,46 +352,21 @@ export default function DailyBriefingVideo({ childId, childName, tasks, isWeeken
       {/* Controls Bar */}
       <div className="flex items-center justify-between px-2">
         <div className="flex items-center gap-3">
-          {isPlaying ? (
-            <button onClick={handlePause} className="text-white hover:text-gray-300 transition-colors">
-              <Pause size={20} className="fill-current" />
-            </button>
-          ) : (
-            <button onClick={handlePlay} className="text-white hover:text-gray-300 transition-colors">
-              <Play size={20} className="fill-current" />
-            </button>
-          )}
+          <button onClick={togglePlayPause} className="text-white hover:text-gray-300 transition-colors z-50">
+            {isPlaying ? <Pause size={20} className="fill-current" /> : <Play size={20} className="fill-current" />}
+          </button>
           <button 
             onClick={handleStop} 
             disabled={!isPlaying && !isPaused}
-            className={`transition-colors ${(!isPlaying && !isPaused) ? 'text-gray-600' : 'text-white hover:text-gray-300'}`}
+            className={`transition-colors z-50 ${(!isPlaying && !isPaused) ? 'text-gray-600' : 'text-white hover:text-gray-300'}`}
           >
             <Square size={16} className="fill-current" />
           </button>
         </div>
         
-        {/* Interactive Progress Bar */}
-        <div 
-          className="flex-1 mx-4 h-3 bg-gray-800 rounded-full overflow-hidden relative cursor-pointer group"
-          onClick={handleSeek}
-        >
-          {/* Hover effect background */}
-          <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity" />
-          
-          {/* Progress Fill */}
-          <div 
-            className="absolute top-0 left-0 h-full bg-blue-500 rounded-full transition-all duration-200 ease-out"
-            style={{ width: `${progress}%` }}
-          />
-          
-          {/* Segment Markers */}
-          {segments.map((_, idx) => (
-            <div 
-              key={idx}
-              className="absolute top-0 bottom-0 w-px bg-black/50"
-              style={{ left: `${(idx / segments.length) * 100}%` }}
-            />
-          ))}
+        {/* Simple Progress Text instead of bar */}
+        <div className="flex-1 text-center text-xs text-gray-400 font-mono">
+          {Math.round(progress)}%
         </div>
         
         <Volume2 size={18} className={`text-gray-400 ${isPlaying ? 'animate-pulse text-white' : ''}`} />

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, CheckCircle2, Activity, Eye, Clock, Hand, Smile, Shield, Bell, Settings, Save } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Activity, Eye, Clock, Hand, Smile, Shield, Bell, Settings, Save, Info, Lightbulb, AlertTriangle, ListChecks, Brain } from 'lucide-react';
 import { TaskData } from '../data/tasks';
 
 interface Props {
@@ -31,6 +31,11 @@ export default function TaskDetailScreen({ task, onBack, onComplete }: Props) {
 
   const handleSetAlarm = () => {
     if (alarmTime) {
+      // Request notification permissions if not granted
+      if ('Notification' in window && Notification.permission !== 'granted') {
+        Notification.requestPermission();
+      }
+
       localStorage.setItem(`alarm_${task.id}`, alarmTime);
       setIsAlarmSet(true);
       alert(`Alarma programada para las ${alarmTime}`);
@@ -96,6 +101,18 @@ export default function TaskDetailScreen({ task, onBack, onComplete }: Props) {
         return (
           <div className="flex justify-center items-center h-40 bg-gray-50 rounded-3xl mb-6 border-2 border-black overflow-hidden gap-4">
             <Smile size={48} className="text-black animate-wiggle" />
+          </div>
+        );
+      case 'rules':
+        return (
+          <div className="flex justify-center items-center h-40 bg-gray-50 rounded-3xl mb-6 border-2 border-black overflow-hidden">
+            <ListChecks size={64} className="text-blue-600 animate-bounce" />
+          </div>
+        );
+      case 'brain':
+        return (
+          <div className="flex justify-center items-center h-40 bg-gray-50 rounded-3xl mb-6 border-2 border-black overflow-hidden">
+            <Brain size={64} className="text-purple-600 animate-pulse" />
           </div>
         );
       default:
@@ -199,6 +216,34 @@ export default function TaskDetailScreen({ task, onBack, onComplete }: Props) {
         <div className="bg-black text-white p-6 rounded-3xl mb-6">
           <p className="text-lg font-medium">{task.description}</p>
         </div>
+
+        {/* Expanded Details Section */}
+        {task.instructions && (
+          <div className="bg-blue-50 border-l-4 border-blue-500 p-4 mb-4 rounded-r-2xl">
+            <h4 className="font-bold text-blue-900 flex items-center gap-2 mb-2">
+              <Info size={18} /> Instrucciones Precisas
+            </h4>
+            <p className="text-blue-800 text-sm">{task.instructions}</p>
+          </div>
+        )}
+
+        {task.tips && (
+          <div className="bg-yellow-50 border-l-4 border-yellow-500 p-4 mb-4 rounded-r-2xl">
+            <h4 className="font-bold text-yellow-900 flex items-center gap-2 mb-2">
+              <Lightbulb size={18} /> Consejos Prácticos
+            </h4>
+            <p className="text-yellow-800 text-sm">{task.tips}</p>
+          </div>
+        )}
+
+        {task.keyInfo && (
+          <div className="bg-purple-50 border-l-4 border-purple-500 p-4 mb-6 rounded-r-2xl">
+            <h4 className="font-bold text-purple-900 flex items-center gap-2 mb-2">
+              <AlertTriangle size={18} /> Información Clave
+            </h4>
+            <p className="text-purple-800 text-sm">{task.keyInfo}</p>
+          </div>
+        )}
 
         <h3 className="text-xl font-bold mb-4">Pasos a seguir:</h3>
         <div className="space-y-4 mb-8">

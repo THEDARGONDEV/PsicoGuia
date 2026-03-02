@@ -6,6 +6,7 @@ import ReminderCard from './ReminderCard';
 import TaskDetailScreen from './TaskDetailScreen';
 import CustomRoutineManager from './CustomRoutineManager';
 import DailyBriefingVideo from './DailyBriefingVideo';
+import JorgeRulesTracker from './JorgeRulesTracker';
 import { TaskData } from '../data/tasks';
 
 // Mock Data (In a real app, this would come from a ViewModel/State Management)
@@ -99,6 +100,11 @@ export default function DashboardScreen({ childId, onBack, tasks, onToggleTask }
             tasks={currentDayTasks} 
             isWeekend={isWeekend} 
           />
+        )}
+
+        {/* Jorge's Rules Tracker */}
+        {childId === 'jorge' && (
+          <JorgeRulesTracker />
         )}
 
         {/* Calendar Section */}

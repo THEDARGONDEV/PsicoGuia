@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
-import { HelpCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { HelpCircle, Activity, BookOpen, X } from 'lucide-react';
 import { ValentinaAvatar, JorgeAvatar } from './Avatars';
 import { TaskData } from '../data/tasks';
 import OnboardingTutorial from './OnboardingTutorial';
 
 interface Props {
-  onSelectChild: (id: string) => void;
+  onSelectChild: (id: string, mode: 'practical' | 'theoretical') => void;
   tasks: TaskData[];
 }
 
@@ -43,12 +43,61 @@ const ProgressCircle = ({ progress }: { progress: number }) => {
 
 export default function ProfileSelectionScreen({ onSelectChild, tasks }: Props) {
   const [showTutorial, setShowTutorial] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
+  const [expandedChild, setExpandedChild] = useState<string | null>(null);
+
+  useEffect(() => {
+    const hasSeenTutorial = localStorage.getItem('psicoguia_tutorial_seen_v2');
+    if (!hasSeenTutorial) {
+      setShowTutorial(true);
+    }
+    setIsInitialized(true);
+  }, []);
+
+  const handleCloseTutorial = () => {
+    localStorage.setItem('psicoguia_tutorial_seen_v2', 'true');
+    setShowTutorial(false);
+  };
 
   const getProgress = (childId: string) => {
     const childTasks = tasks.filter(t => t.childId === childId);
     if (childTasks.length === 0) return 0;
     const completed = childTasks.filter(t => t.completed).length;
     return (completed / childTasks.length) * 100;
+  };
+
+  // Prevent flashing the UI before checking localStorage
+  if (!isInitialized) return null;
+
+  const renderChildOptions = (childId: string) => {
+    if (expandedChild !== childId) return null;
+    return (
+      <div className="absolute inset-0 bg-black/90 rounded-3xl flex flex-col items-center justify-center p-6 z-20 animate-fade-in">
+        <button 
+          onClick={(e) => { e.stopPropagation(); setExpandedChild(null); }}
+          className="absolute top-4 right-4 text-white/50 hover:text-white"
+        >
+          <X size={24} />
+        </button>
+        <h3 className="text-white text-xl font-bold mb-6">Selecciona un Módulo</h3>
+        
+        <button 
+          onClick={(e) => { e.stopPropagation(); onSelectChild(childId, 'practical'); }}
+          className="w-full bg-white text-black p-4 rounded-2xl mb-4 font-bold flex items-center justify-center gap-3 hover:bg-gray-200 transition-colors"
+        >
+          <Activity size={24} />
+          Actividades Prácticas
+        </button>
+        
+        <button 
+          onClick={(e) => { e.stopPropagation(); onSelectChild(childId, 'theoretical'); }}
+          className="w-full bg-gray-800 text-white border-2 border-gray-600 p-4 rounded-2xl font-bold flex items-center justify-center gap-3 hover:bg-gray-700 transition-colors"
+        >
+          <BookOpen size={24} />
+          Módulo Teórico
+        </button>
+      </div>
+    );
   };
 
   return (
@@ -67,8 +116,8 @@ export default function ProfileSelectionScreen({ onSelectChild, tasks }: Props) 
 
       <div className="w-full space-y-6">
         <button
-          onClick={() => onSelectChild('valentina')}
-          className="w-full group flex flex-col items-center p-8 rounded-3xl border-2 border-black hover:bg-black hover:text-white transition-colors duration-300 relative"
+          onClick={() => setExpandedChild(expandedChild === 'valentina' ? null : 'valentina')}
+          className="w-full group flex flex-col items-center p-8 rounded-3xl border-2 border-black hover:bg-black hover:text-white transition-colors duration-300 relative overflow-hidden"
         >
           <div className="relative w-36 h-36 mb-4 flex items-center justify-center">
             <ProgressCircle progress={getProgress('valentina')} />
@@ -83,11 +132,12 @@ export default function ProfileSelectionScreen({ onSelectChild, tasks }: Props) 
               ¡Semana Completa!
             </span>
           )}
+          {renderChildOptions('valentina')}
         </button>
 
         <button
-          onClick={() => onSelectChild('jorge')}
-          className="w-full group flex flex-col items-center p-8 rounded-3xl border-2 border-black hover:bg-black hover:text-white transition-colors duration-300 relative"
+          onClick={() => setExpandedChild(expandedChild === 'jorge' ? null : 'jorge')}
+          className="w-full group flex flex-col items-center p-8 rounded-3xl border-2 border-black hover:bg-black hover:text-white transition-colors duration-300 relative overflow-hidden"
         >
           <div className="relative w-36 h-36 mb-4 flex items-center justify-center">
             <ProgressCircle progress={getProgress('jorge')} />
@@ -102,11 +152,12 @@ export default function ProfileSelectionScreen({ onSelectChild, tasks }: Props) 
               ¡Semana Completa!
             </span>
           )}
+          {renderChildOptions('jorge')}
         </button>
       </div>
 
       {showTutorial && (
-        <OnboardingTutorial onComplete={() => setShowTutorial(false)} />
+        <OnboardingTutorial onComplete={handleCloseTutorial} />
       )}
     </div>
   );
