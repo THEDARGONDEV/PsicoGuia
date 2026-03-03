@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ArrowLeft, Send, Bot, Loader2, Mic, MicOff, Plus, Trash2, MessageSquare, Menu, X } from 'lucide-react';
+import { generateLocalResponse } from '../services/localAIEngine';
 
 interface Message {
   id: string;
@@ -168,30 +169,13 @@ export default function PsychologicalAIChat({ onBack, username }: { onBack: () =
     setIsLoading(true);
 
     try {
-      // Simular tiempo de pensamiento de la IA
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Generar respuesta usando el motor local avanzado, pasando el historial para dar contexto
+      const text = await generateLocalResponse(input, currentMessages);
 
-      const lowerInput = input.toLowerCase();
-      let text = "";
-
-      // Motor de IA Local basado en reglas (Sin necesidad de API Keys)
-      if (lowerInput.includes('hola') || lowerInput.includes('buenos dias') || lowerInput.includes('buenas tardes')) {
-        text = "¡Hola! Estoy aquí para apoyarte. Como asistente local, funciono sin internet y sin configuraciones. ¿En qué puedo ayudarte hoy con tus pequeños?";
-      } else if (lowerInput.includes('tdah') || lowerInput.includes('hiperactivo') || lowerInput.includes('inquieto') || lowerInput.includes('concentra') || lowerInput.includes('tarea')) {
-        text = "Para el TDAH hiperactivo, te sugiero:\n\n• Establecer rutinas visuales claras.\n• Dividir las tareas grandes en pasos pequeños.\n• Permitir descansos activos (que salte o corra un poco) entre tareas.\n• Reforzar positivamente cada pequeño logro.";
-      } else if (lowerInput.includes('paralisis') || lowerInput.includes('motor') || lowerInput.includes('niña') || lowerInput.includes('física') || lowerInput.includes('caminar') || lowerInput.includes('silla')) {
-        text = "Con la Parálisis Cerebral, es fundamental:\n\n• Fomentar su autonomía en lo que sí puede hacer.\n• Celebrar sus esfuerzos, no solo los resultados.\n• Mantener un entorno accesible y seguro.\n• Seguir las pautas de sus terapeutas físicos y ocupacionales integrándolas en el juego.";
-      } else if (lowerInput.includes('pelean') || lowerInput.includes('hermanos') || lowerInput.includes('celos') || lowerInput.includes('juntos')) {
-        text = "La dinámica entre hermanos con necesidades diferentes puede ser un reto:\n\n• Dedica tiempo a solas (aunque sean 15 min) con cada uno.\n• Fomenta juegos donde ambos puedan participar desde sus capacidades.\n• Valida sus emociones ('Entiendo que estés frustrado').";
-      } else if (lowerInput.includes('cansada') || lowerInput.includes('agotada') || lowerInput.includes('estres') || lowerInput.includes('no puedo mas') || lowerInput.includes('llorar')) {
-        text = "Es completamente normal sentirse así. Cuidar de niños con necesidades especiales es un maratón, no un sprint.\n\n• Busca micro-momentos para ti (un té caliente, 5 minutos de respiración).\n• No temas pedir ayuda a familiares o redes de apoyo.\n• Recuerda que estás haciendo un trabajo increíble y tus hijos te aman.";
-      } else if (lowerInput.includes('crisis') || lowerInput.includes('berrinche') || lowerInput.includes('llora') || lowerInput.includes('grita')) {
-        text = "Durante una crisis o desregulación emocional:\n\n• Mantén la calma; tu tranquilidad es su ancla.\n• Reduce los estímulos del entorno (luces, ruidos).\n• Usa frases cortas y claras.\n• Asegura el área para que no se lastimen y acompáñalos hasta que la emoción baje.";
-      } else if (lowerInput.includes('gracias') || lowerInput.includes('agradezco')) {
-        text = "¡De nada! Estoy aquí siempre que necesites orientación, ideas o simplemente un espacio para desahogarte. ¡Mucho ánimo!";
-      } else {
-        text = "Entiendo lo que me comentas. Como tu asistente local integrado, mi conocimiento está enfocado en darte estrategias rápidas. Te sugiero preguntarme sobre:\n\n• Manejo de crisis y berrinches.\n• Estrategias para TDAH (concentración, energía).\n• Apoyo para Parálisis Cerebral (autonomía, motivación).\n• Relación entre hermanos.\n• Manejo del estrés para ti como madre/padre.";
-      }
+      // Simular tiempo de pensamiento de la IA basado en la longitud de la respuesta
+      // para que se sienta más natural y fluida (entre 800ms y 3000ms)
+      const delay = Math.min(Math.max(text.length * 10, 800), 3000);
+      await new Promise(resolve => setTimeout(resolve, delay));
 
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
