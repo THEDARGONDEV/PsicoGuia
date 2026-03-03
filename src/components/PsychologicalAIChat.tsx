@@ -169,7 +169,12 @@ export default function PsychologicalAIChat({ onBack, username }: { onBack: () =
     setIsLoading(true);
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        throw new Error("API Key no encontrada. Verifica la configuración del entorno.");
+      }
+      
+      const ai = new GoogleGenAI({ apiKey });
       
       const chat = ai.chats.create({
         model: "gemini-3-flash-preview",
@@ -201,12 +206,20 @@ export default function PsychologicalAIChat({ onBack, username }: { onBack: () =
         return session;
       }));
 
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error calling AI:", error);
+      let errorMsg = "Lo siento, hubo un error al conectar con el servicio. Por favor, intenta de nuevo.";
+      
+      if (error.message?.includes("API Key")) {
+        errorMsg = "Error de configuración: No se encontró la API Key. Por favor verifica que la clave esté configurada correctamente en el entorno.";
+      } else if (error.message?.includes("403") || error.message?.includes("permission")) {
+        errorMsg = "Error de permisos: La API Key no es válida o no tiene permisos para usar este modelo.";
+      }
+
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: "Lo siento, hubo un error al conectar con el servicio. Por favor, intenta de nuevo."
+        content: errorMsg
       };
       setSessions(prev => prev.map(session => {
         if (session.id === currentSessionId) {
