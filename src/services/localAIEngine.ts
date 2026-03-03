@@ -4,6 +4,11 @@ export interface Intent {
   responses: string[];
 }
 
+export interface AIResponse {
+  text: string;
+  suggestion?: string;
+}
+
 // Función auxiliar para normalizar texto (quitar acentos, puntuación y pasar a minúsculas)
 const normalize = (text: string) => {
   return text
@@ -171,23 +176,28 @@ const intents: Intent[] = [
   // --- VAGOS E IMPLÍCITOS ---
   {
     id: 'vago_ayuda',
-    keywords: ['ayuda', 'auxilio', 'que hago', 'como le hago', 'dame un consejo', 'necesito ayuda', 'orientacion'],
+    keywords: ['ayuda', 'auxilio', 'que hago', 'como le hago', 'dame un consejo', 'necesito ayuda', 'orientacion', 'estrategia', 'estrategias', 'manejar', 'solucion', 'tips', 'recomendacion'],
     responses: [
       "Estoy aquí para ayudarte. Para darte la mejor estrategia, cuéntame un poco más: ¿La situación es con la hiperactividad del niño, con los retos físicos de la niña, o es algo relacionado con cómo te sientes tú en este momento?",
-      "Claro que sí, respira profundo, no estás sola/o en esto. ¿Qué es lo que más te está costando trabajo justo ahora? ¿Es un tema de comportamiento, de rutinas, o de cansancio emocional?"
+      "Claro que sí, respira profundo, no estás sola/o en esto. ¿Qué es lo que más te está costando trabajo justo ahora? ¿Es un tema de comportamiento, de rutinas, o de cansancio emocional?",
+      "Tengo varias estrategias que pueden servirte. ¿Te gustaría que hablemos sobre cómo mejorar las rutinas en casa, cómo manejar las crisis, o prefieres enfocarte en tu propio autocuidado hoy?"
     ]
   }
 ];
 
 const fallbacks = [
-  "Entiendo lo que me comentas. Es una situación compleja. En el contexto de tus pequeños (TDAH y Parálisis Cerebral), ¿cómo te hace sentir esto a ti y cómo están reaccionando ellos?",
-  "Te leo atentamente. Cada detalle cuenta en la dinámica familiar que llevan. ¿Podrías darme un ejemplo un poco más específico para darte una estrategia más exacta?",
-  "Comprendo. Como tu asistente local, mi objetivo es darte herramientas prácticas y apoyo emocional. ¿Te gustaría que nos enfoquemos en cómo manejar la conducta de los niños, o en cómo puedes manejar tú el estrés de esta situación?",
-  "Es muy interesante lo que planteas. La crianza atípica requiere mucha creatividad. ¿Qué estrategias has intentado hasta ahora con ellos sobre este tema?",
-  "Estoy aquí contigo. A veces solo necesitamos poner en palabras lo que está pasando. Cuéntame un poco más, ¿qué es lo que más te preocupa o te agota de esto que me cuentas?"
+  "Entiendo lo que me comentas. Para poder darte una estrategia más precisa, ¿podrías darme un ejemplo de lo que pasó exactamente?",
+  "Te leo atentamente. A veces es difícil encontrar la solución a la primera. ¿Te gustaría que exploremos estrategias de comportamiento, o prefieres hablar de cómo te sientes al respecto?",
+  "Comprendo. Como tu asistente, mi objetivo es darte herramientas prácticas. ¿Podrías intentar describirlo con otras palabras o decirme qué es lo que más te preocupa de esta situación?",
+  "Es una situación compleja. La crianza atípica requiere mucha creatividad. ¿Qué es lo que ya has intentado y sientes que no te ha funcionado?",
+  "Estoy aquí contigo. Si te sientes atascada/o, podemos cambiar de enfoque. ¿Te gustaría ver algunas estrategias generales para el TDAH, la Parálisis Cerebral, o para el estrés de los padres?"
 ];
 
-export async function generateLocalResponse(input: string, history: {role: string, content: string}[]): Promise<string> {
+export async function generateLocalResponse(
+  input: string, 
+  history: {role: string, content: string}[],
+  focus?: 'niño' | 'niña' | 'padres' | null
+): Promise<AIResponse> {
   const normalizedInput = normalize(input);
   const words = normalizedInput.split(/\s+/);
 
@@ -238,6 +248,7 @@ export async function generateLocalResponse(input: string, history: {role: strin
   }
 
   let responseText = "";
+  let suggestion: string | undefined = undefined;
 
   // 4. Selección de respuesta evitando redundancia
   if (bestIntent && maxScore > 0) {
@@ -260,7 +271,44 @@ export async function generateLocalResponse(input: string, history: {role: strin
     } else {
       responseText = fallbacks[0];
     }
+
+    // Generar sugerencia dinámica garantizada para romper bucles
+    // En lugar de usar las palabras del usuario (que pueden no estar en la base de datos),
+    // ofrecemos preguntas directas que SABEMOS que activarán una intención específica.
+    
+    const suggestionsByFocus = {
+      'niño': [
+        "¿Cómo manejo su impulsividad y falta de atención?",
+        "¿Qué hago si no quiere hacer las tareas de la escuela?",
+        "¿Tienes estrategias para que pueda dormir mejor?",
+        "¿Cómo actúo cuando hace un berrinche muy fuerte?"
+      ],
+      'niña': [
+        "¿Cómo puedo fomentar su autonomía para vestirse o comer?",
+        "¿Qué hago si rechaza ciertas texturas en la comida?",
+        "¿Cómo puedo integrar sus terapias físicas en el juego diario?",
+        "¿Cómo manejo los celos entre los hermanos?"
+      ],
+      'padres': [
+        "Me siento con burnout y muy agotada/o, ¿qué hago?",
+        "Siento mucha culpa cuando pierdo la paciencia y les grito.",
+        "¿Cómo mejoro la relación con mi pareja con tanto estrés?",
+        "¿Cómo lidio con las miradas y juicios de la gente en la calle?"
+      ],
+      'default': [
+        "¿Me das estrategias para manejar la hiperactividad?",
+        "¿Cómo fomento la independencia de mi hija?",
+        "Necesito un consejo para manejar mi propio estrés.",
+        "¿Cómo hago para que los hermanos jueguen juntos sin pelear?"
+      ]
+    };
+
+    const focusKey = focus && suggestionsByFocus[focus] ? focus : 'default';
+    const possibleSuggestions = suggestionsByFocus[focusKey];
+    
+    // Elegir una sugerencia aleatoria del pool correspondiente
+    suggestion = possibleSuggestions[Math.floor(Math.random() * possibleSuggestions.length)];
   }
 
-  return responseText;
+  return { text: responseText, suggestion };
 }

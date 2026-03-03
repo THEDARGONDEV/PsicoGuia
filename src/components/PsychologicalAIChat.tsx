@@ -6,6 +6,7 @@ interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
+  suggestion?: string;
 }
 
 interface ChatSession {
@@ -13,6 +14,7 @@ interface ChatSession {
   title: string;
   messages: Message[];
   createdAt: number;
+  focus?: 'niño' | 'niña' | 'padres';
 }
 
 export default function PsychologicalAIChat({ onBack, username }: { onBack: () => void, username: string | null }) {
@@ -142,6 +144,32 @@ export default function PsychologicalAIChat({ onBack, username }: { onBack: () =
   const currentSession = sessions.find(s => s.id === currentSessionId);
   const currentMessages = currentSession?.messages || [];
 
+  const handleStartChat = (focus: 'niño' | 'niña' | 'padres') => {
+    if (!currentSessionId) return;
+    
+    let initialText = "";
+    if (focus === 'niño') initialText = "Entiendo, hablemos de tu hijo. ¿Qué desafío están enfrentando hoy con su TDAH o hiperactividad?";
+    if (focus === 'niña') initialText = "De acuerdo, hablemos de tu hija. ¿En qué área de su desarrollo o autonomía te gustaría que nos enfoquemos hoy?";
+    if (focus === 'padres') initialText = "Es muy importante cuidarte a ti también. ¿Cómo te sientes hoy? ¿Hay algo que te tenga especialmente agotada o estresada?";
+    
+    const aiMessage: Message = {
+      id: Date.now().toString(),
+      role: 'assistant',
+      content: initialText
+    };
+
+    setSessions(prev => prev.map(session => {
+      if (session.id === currentSessionId) {
+        return {
+          ...session,
+          focus,
+          messages: [aiMessage]
+        };
+      }
+      return session;
+    }));
+  };
+
   const handleSend = async () => {
     if (!input.trim() || !currentSessionId) return;
 
@@ -170,17 +198,18 @@ export default function PsychologicalAIChat({ onBack, username }: { onBack: () =
 
     try {
       // Generar respuesta usando el motor local avanzado, pasando el historial para dar contexto
-      const text = await generateLocalResponse(input, currentMessages);
+      const response = await generateLocalResponse(input, currentMessages, currentSession?.focus);
 
       // Simular tiempo de pensamiento de la IA basado en la longitud de la respuesta
       // para que se sienta más natural y fluida (entre 800ms y 3000ms)
-      const delay = Math.min(Math.max(text.length * 10, 800), 3000);
+      const delay = Math.min(Math.max(response.text.length * 10, 800), 3000);
       await new Promise(resolve => setTimeout(resolve, delay));
 
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: text
+        content: response.text,
+        suggestion: response.suggestion
       };
 
       setSessions(prev => prev.map(session => {
@@ -293,11 +322,55 @@ export default function PsychologicalAIChat({ onBack, username }: { onBack: () =
 
         <div className="flex-1 overflow-y-auto p-4 space-y-6 bg-gray-50">
           {currentMessages.length === 0 && (
-            <div className="flex flex-col items-center justify-center h-full text-center p-8 opacity-50">
-              <Bot size={48} className="mb-4 text-gray-300" />
-              <p className="text-sm text-gray-400 max-w-xs">
-                Hola. Estoy aquí para apoyarte con tus hijos (TDAH y Parálisis Cerebral). Pregúntame lo que necesites.
+            <div className="flex flex-col items-center justify-center h-full text-center p-4 md:p-8 overflow-y-auto">
+              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-6 shadow-sm">
+                <Bot size={32} className="text-gray-600" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">¿De qué te gustaría hablar hoy?</h3>
+              <p className="text-sm text-gray-500 mb-8 max-w-sm">
+                Selecciona un tema para que pueda adaptar mis respuestas y darte las mejores estrategias.
               </p>
+              
+              <div className="flex flex-col gap-3 w-full max-w-sm">
+                <button 
+                  onClick={() => handleStartChat('niño')}
+                  className="p-4 rounded-2xl border border-gray-200 bg-white shadow-sm hover:shadow-md hover:border-gray-300 transition-all text-left flex items-center gap-4 group"
+                >
+                  <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 group-hover:scale-110 transition-transform">
+                    <span className="text-lg">👦</span>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-gray-900 text-sm">Mi hijo</p>
+                    <p className="text-xs text-gray-500">TDAH, hiperactividad, escuela</p>
+                  </div>
+                </button>
+                
+                <button 
+                  onClick={() => handleStartChat('niña')}
+                  className="p-4 rounded-2xl border border-gray-200 bg-white shadow-sm hover:shadow-md hover:border-gray-300 transition-all text-left flex items-center gap-4 group"
+                >
+                  <div className="w-10 h-10 rounded-full bg-pink-50 flex items-center justify-center text-pink-600 group-hover:scale-110 transition-transform">
+                    <span className="text-lg">👧</span>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-gray-900 text-sm">Mi hija</p>
+                    <p className="text-xs text-gray-500">Parálisis cerebral, autonomía</p>
+                  </div>
+                </button>
+
+                <button 
+                  onClick={() => handleStartChat('padres')}
+                  className="p-4 rounded-2xl border border-gray-200 bg-white shadow-sm hover:shadow-md hover:border-gray-300 transition-all text-left flex items-center gap-4 group"
+                >
+                  <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600 group-hover:scale-110 transition-transform">
+                    <span className="text-lg">🫂</span>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-gray-900 text-sm">Sobre mí</p>
+                    <p className="text-xs text-gray-500">Estrés, cansancio, pareja</p>
+                  </div>
+                </button>
+              </div>
             </div>
           )}
 
@@ -314,6 +387,20 @@ export default function PsychologicalAIChat({ onBack, username }: { onBack: () =
                 }`}
               >
                 {msg.content}
+                
+                {msg.role === 'assistant' && msg.suggestion && (
+                  <div className="mt-4 pt-3 border-t border-gray-100">
+                    <p className="text-xs text-gray-400 mb-2 flex items-center gap-1">
+                      💡 Sugerencia para continuar:
+                    </p>
+                    <button 
+                      onClick={() => setInput(msg.suggestion!)}
+                      className="text-sm text-gray-600 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2 hover:bg-gray-100 transition-colors text-left w-full"
+                    >
+                      "{msg.suggestion}"
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           ))}
