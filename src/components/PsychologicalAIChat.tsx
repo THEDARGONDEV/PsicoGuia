@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ArrowLeft, Send, Bot, Loader2, Mic, MicOff, Plus, Trash2, MessageSquare, Menu, X } from 'lucide-react';
-import { GoogleGenAI } from "@google/genai";
 
 interface Message {
   id: string;
@@ -169,31 +168,35 @@ export default function PsychologicalAIChat({ onBack, username }: { onBack: () =
     setIsLoading(true);
 
     try {
-      const apiKey = process.env.GEMINI_API_KEY;
-      if (!apiKey) {
-        throw new Error("API Key no encontrada. Verifica la configuración del entorno.");
-      }
-      
-      const ai = new GoogleGenAI({ apiKey });
-      
-      const chat = ai.chats.create({
-        model: "gemini-3-flash-preview",
-        config: {
-          systemInstruction: "Eres un asistente experto en neurodesarrollo y crianza. Tu contexto es una familia con dos hijos: una niña con Parálisis Cerebral y un niño con TDAH tipo Hiperactivo. Todas las preguntas se refieren a ellos. TUS RESPUESTAS DEBEN SER: 1) Extremadamente limpias y minimalistas (EVITA el uso de asteriscos '**', negritas o markdown excesivo). 2) Concretas y prácticas. 3) Organizadas en párrafos breves o listas simples sin viñetas complejas. 4) Empáticas pero directas. No saludes ni te despidas repetitivamente. Regla estricta: Cero exceso de texto. Evita párrafos densos. Usa viñetas para enumerar pasos o consejos de forma clara y accionable.",
-        },
-        history: currentMessages.map(m => ({
-          role: m.role === 'user' ? 'user' : 'model',
-          parts: [{ text: m.content }]
-        })),
-      });
+      // Simular tiempo de pensamiento de la IA
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
-      const result = await chat.sendMessage({ message: input });
-      const text = result.text;
+      const lowerInput = input.toLowerCase();
+      let text = "";
+
+      // Motor de IA Local basado en reglas (Sin necesidad de API Keys)
+      if (lowerInput.includes('hola') || lowerInput.includes('buenos dias') || lowerInput.includes('buenas tardes')) {
+        text = "¡Hola! Estoy aquí para apoyarte. Como asistente local, funciono sin internet y sin configuraciones. ¿En qué puedo ayudarte hoy con tus pequeños?";
+      } else if (lowerInput.includes('tdah') || lowerInput.includes('hiperactivo') || lowerInput.includes('inquieto') || lowerInput.includes('concentra') || lowerInput.includes('tarea')) {
+        text = "Para el TDAH hiperactivo, te sugiero:\n\n• Establecer rutinas visuales claras.\n• Dividir las tareas grandes en pasos pequeños.\n• Permitir descansos activos (que salte o corra un poco) entre tareas.\n• Reforzar positivamente cada pequeño logro.";
+      } else if (lowerInput.includes('paralisis') || lowerInput.includes('motor') || lowerInput.includes('niña') || lowerInput.includes('física') || lowerInput.includes('caminar') || lowerInput.includes('silla')) {
+        text = "Con la Parálisis Cerebral, es fundamental:\n\n• Fomentar su autonomía en lo que sí puede hacer.\n• Celebrar sus esfuerzos, no solo los resultados.\n• Mantener un entorno accesible y seguro.\n• Seguir las pautas de sus terapeutas físicos y ocupacionales integrándolas en el juego.";
+      } else if (lowerInput.includes('pelean') || lowerInput.includes('hermanos') || lowerInput.includes('celos') || lowerInput.includes('juntos')) {
+        text = "La dinámica entre hermanos con necesidades diferentes puede ser un reto:\n\n• Dedica tiempo a solas (aunque sean 15 min) con cada uno.\n• Fomenta juegos donde ambos puedan participar desde sus capacidades.\n• Valida sus emociones ('Entiendo que estés frustrado').";
+      } else if (lowerInput.includes('cansada') || lowerInput.includes('agotada') || lowerInput.includes('estres') || lowerInput.includes('no puedo mas') || lowerInput.includes('llorar')) {
+        text = "Es completamente normal sentirse así. Cuidar de niños con necesidades especiales es un maratón, no un sprint.\n\n• Busca micro-momentos para ti (un té caliente, 5 minutos de respiración).\n• No temas pedir ayuda a familiares o redes de apoyo.\n• Recuerda que estás haciendo un trabajo increíble y tus hijos te aman.";
+      } else if (lowerInput.includes('crisis') || lowerInput.includes('berrinche') || lowerInput.includes('llora') || lowerInput.includes('grita')) {
+        text = "Durante una crisis o desregulación emocional:\n\n• Mantén la calma; tu tranquilidad es su ancla.\n• Reduce los estímulos del entorno (luces, ruidos).\n• Usa frases cortas y claras.\n• Asegura el área para que no se lastimen y acompáñalos hasta que la emoción baje.";
+      } else if (lowerInput.includes('gracias') || lowerInput.includes('agradezco')) {
+        text = "¡De nada! Estoy aquí siempre que necesites orientación, ideas o simplemente un espacio para desahogarte. ¡Mucho ánimo!";
+      } else {
+        text = "Entiendo lo que me comentas. Como tu asistente local integrado, mi conocimiento está enfocado en darte estrategias rápidas. Te sugiero preguntarme sobre:\n\n• Manejo de crisis y berrinches.\n• Estrategias para TDAH (concentración, energía).\n• Apoyo para Parálisis Cerebral (autonomía, motivación).\n• Relación entre hermanos.\n• Manejo del estrés para ti como madre/padre.";
+      }
 
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: text || "Lo siento, no pude generar una respuesta."
+        content: text
       };
 
       setSessions(prev => prev.map(session => {
@@ -207,29 +210,7 @@ export default function PsychologicalAIChat({ onBack, username }: { onBack: () =
       }));
 
     } catch (error: any) {
-      console.error("Error calling AI:", error);
-      let errorMsg = "Lo siento, hubo un error al conectar con el servicio. Por favor, intenta de nuevo.";
-      
-      if (error.message?.includes("API Key")) {
-        errorMsg = "Error de configuración: No se encontró la API Key. Por favor verifica que la clave esté configurada correctamente en el entorno.";
-      } else if (error.message?.includes("403") || error.message?.includes("permission")) {
-        errorMsg = "Error de permisos: La API Key no es válida o no tiene permisos para usar este modelo.";
-      }
-
-      const errorMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: errorMsg
-      };
-      setSessions(prev => prev.map(session => {
-        if (session.id === currentSessionId) {
-          return {
-            ...session,
-            messages: [...session.messages, errorMessage]
-          };
-        }
-        return session;
-      }));
+      console.error("Error in local AI:", error);
     } finally {
       setIsLoading(false);
     }
